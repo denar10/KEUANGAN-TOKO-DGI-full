@@ -14,6 +14,7 @@ function App() {
     }
     return [];
   });
+  
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState("income");
   const [selectedCategory, setSelectedCategory] = useState("Es Krim & Mainan");
@@ -55,6 +56,99 @@ function App() {
       currency: "IDR",
       minimumFractionDigits: 0,
     }).format(amount);
+  };
+
+  // Get date ranges
+  const getWeekRange = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(d.setDate(diff));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    
+    return {
+      start: monday.toISOString().split('T')[0],
+      end: sunday.toISOString().split('T')[0],
+      label: `${monday.getDate()}/${monday.getMonth() + 1} - ${sunday.getDate()}/${sunday.getMonth() + 1}/${sunday.getFullYear()}`
+    };
+  };
+
+  const getMonthRange = (date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    
+    return {
+      start: firstDay.toISOString().split('T')[0],
+      end: lastDay.toISOString().split('T')[0],
+      label: `${getMonthName(month)} ${year}`
+    };
+  };
+
+  const getMonthName = (monthIndex) => {
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return months[monthIndex];
+  };
+
+  const filterTransactionsByDateRange = (startDate, endDate) => {
+    return transactions.filter(t => t.date >= startDate && t.date <= endDate);
+  };
+
+  const calculateTotalsForRange = (startDate, endDate) => {
+    const filteredTransactions = filterTransactionsByDateRange(startDate, endDate);
+    const income = filteredTransactions
+      .filter(t => t.type === "income")
+      .reduce((sum, t) => sum + t.amount, 0);
+    const expense = filteredTransactions
+      .filter(t => t.type === "expense")
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    return { income, expense, profit: income - expense, transactions: filteredTransactions };
+  };
+
+  const getWeeklyReports = () => {
+    const reports = [];
+    const today = new Date();
+    
+    for (let i = 0; i < 4; i++) {
+      const weekDate = new Date(today);
+      weekDate.setDate(today.getDate() - (i * 7));
+      const weekRange = getWeekRange(weekDate);
+      const totals = calculateTotalsForRange(weekRange.start, weekRange.end);
+      
+      reports.push({
+        ...weekRange,
+        ...totals,
+        period: `Minggu ${i + 1}`
+      });
+    }
+    
+    return reports.reverse();
+  };
+
+  const getMonthlyReports = () => {
+    const reports = [];
+    const today = new Date();
+    
+    for (let i = 0; i < 6; i++) {
+      const monthDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthRange = getMonthRange(monthDate);
+      const totals = calculateTotalsForRange(monthRange.start, monthRange.end);
+      
+      reports.push({
+        ...monthRange,
+        ...totals,
+        period: monthRange.label
+      });
+    }
+    
+    return reports.reverse();
   };
 
   const handleSubmit = () => {
@@ -127,13 +221,37 @@ function App() {
     content = content + "========================================\n";
     content = content + "Tanggal: " + today + "\n\n";
 
-    content = content + "RINGKASAN KEUANGAN:\n";
+    content = content + "RINGKASAN KEUANGAN KESELURUHAN:\n";
     content = content + "----------------------------------------\n";
     content = content + "Total Pemasukan    : " + formatCurrency(totalIncome) + "\n";
     content = content + "Total Pengeluaran  : " + formatCurrency(totalExpense) + "\n";
     content = content + "Keuntungan Bersih  : " + formatCurrency(profit) + "\n\n";
 
-    content = content + "LAPORAN PER KATEGORI:\n";
+    // Weekly Reports
+    content = content + "LAPORAN MINGGUAN (4 MINGGU TERAKHIR):\n";
+    content = content + "----------------------------------------\n";
+    const weeklyReports = getWeeklyReports();
+    weeklyReports.forEach((week, index) => {
+      content = content + `\n${week.period} (${week.label}):\n`;
+      content = content + "  Pemasukan    : " + formatCurrency(week.income) + "\n";
+      content = content + "  Pengeluaran  : " + formatCurrency(week.expense) + "\n";
+      content = content + "  Keuntungan   : " + formatCurrency(week.profit) + "\n";
+      content = content + "  Transaksi    : " + week.transactions.length + " item\n";
+    });
+
+    // Monthly Reports
+    content = content + "\n\nLAPORAN BULANAN (6 BULAN TERAKHIR):\n";
+    content = content + "----------------------------------------\n";
+    const monthlyReports = getMonthlyReports();
+    monthlyReports.forEach((month, index) => {
+      content = content + `\n${month.period}:\n`;
+      content = content + "  Pemasukan    : " + formatCurrency(month.income) + "\n";
+      content = content + "  Pengeluaran  : " + formatCurrency(month.expense) + "\n";
+      content = content + "  Keuntungan   : " + formatCurrency(month.profit) + "\n";
+      content = content + "  Transaksi    : " + month.transactions.length + " item\n";
+    });
+
+    content = content + "\n\nLAPORAN PER KATEGORI:\n";
     content = content + "----------------------------------------\n";
 
     const categories = ["Es Krim & Mainan", "Gas"];
@@ -252,101 +370,40 @@ function App() {
             justifyContent: "space-between",
           }}
         >
-          <button
-            onClick={() => setCurrentPage("dashboard")}
-            style={{
-              flex: "1",
-              minWidth: "60px",
-              padding: "12px 8px",
-              background: currentPage === "dashboard" ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "transparent",
-              color: currentPage === "dashboard" ? "white" : "#64748b",
-              border: "none",
-              borderRadius: "16px",
-              cursor: "pointer",
-              fontSize: "11px",
-              fontWeight: "600",
-              transition: "all 0.3s ease",
-              boxShadow: currentPage === "dashboard" ? "0 4px 15px rgba(102, 126, 234, 0.3)" : "none",
-            }}
-          >
-            📊 Dashboard
-          </button>
-          <button
-            onClick={() => setCurrentPage("pemasukan")}
-            style={{
-              flex: "1",
-              minWidth: "60px",
-              padding: "12px 8px",
-              background: currentPage === "pemasukan" ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "transparent",
-              color: currentPage === "pemasukan" ? "white" : "#64748b",
-              border: "none",
-              borderRadius: "16px",
-              cursor: "pointer",
-              fontSize: "11px",
-              fontWeight: "600",
-              transition: "all 0.3s ease",
-              boxShadow: currentPage === "pemasukan" ? "0 4px 15px rgba(16, 185, 129, 0.3)" : "none",
-            }}
-          >
-            💰 Masuk
-          </button>
-          <button
-            onClick={() => setCurrentPage("pengeluaran")}
-            style={{
-              flex: "1",
-              minWidth: "60px",
-              padding: "12px 8px",
-              background: currentPage === "pengeluaran" ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" : "transparent",
-              color: currentPage === "pengeluaran" ? "white" : "#64748b",
-              border: "none",
-              borderRadius: "16px",
-              cursor: "pointer",
-              fontSize: "11px",
-              fontWeight: "600",
-              transition: "all 0.3s ease",
-              boxShadow: currentPage === "pengeluaran" ? "0 4px 15px rgba(239, 68, 68, 0.3)" : "none",
-            }}
-          >
-            💸 Keluar
-          </button>
-          <button
-            onClick={() => setCurrentPage("transaksi")}
-            style={{
-              flex: "1",
-              minWidth: "60px",
-              padding: "12px 8px",
-              background: currentPage === "transaksi" ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" : "transparent",
-              color: currentPage === "transaksi" ? "white" : "#64748b",
-              border: "none",
-              borderRadius: "16px",
-              cursor: "pointer",
-              fontSize: "11px",
-              fontWeight: "600",
-              transition: "all 0.3s ease",
-              boxShadow: currentPage === "transaksi" ? "0 4px 15px rgba(245, 158, 11, 0.3)" : "none",
-            }}
-          >
-            📋 Data
-          </button>
-          <button
-            onClick={() => setCurrentPage("laporan")}
-            style={{
-              flex: "1",
-              minWidth: "60px",
-              padding: "12px 8px",
-              background: currentPage === "laporan" ? "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)" : "transparent",
-              color: currentPage === "laporan" ? "white" : "#64748b",
-              border: "none",
-              borderRadius: "16px",
-              cursor: "pointer",
-              fontSize: "11px",
-              fontWeight: "600",
-              transition: "all 0.3s ease",
-              boxShadow: currentPage === "laporan" ? "0 4px 15px rgba(139, 92, 246, 0.3)" : "none",
-            }}
-          >
-            📊 Report
-          </button>
+          {[
+            { key: "dashboard", icon: "📊", label: "Dashboard" },
+            { key: "pemasukan", icon: "💰", label: "Masuk" }, 
+            { key: "pengeluaran", icon: "💸", label: "Keluar" },
+            { key: "transaksi", icon: "📋", label: "Data" },
+            { key: "laporan", icon: "📊", label: "Report" }
+          ].map((nav) => (
+            <button
+              key={nav.key}
+              onClick={() => setCurrentPage(nav.key)}
+              style={{
+                flex: "1",
+                minWidth: "60px",
+                padding: "12px 8px",
+                background: currentPage === nav.key 
+                  ? nav.key === "dashboard" ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                  : nav.key === "pemasukan" ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+                  : nav.key === "pengeluaran" ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
+                  : nav.key === "transaksi" ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+                  : "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)"
+                  : "transparent",
+                color: currentPage === nav.key ? "white" : "#64748b",
+                border: "none",
+                borderRadius: "16px",
+                cursor: "pointer",
+                fontSize: "11px",
+                fontWeight: "600",
+                transition: "all 0.3s ease",
+                boxShadow: currentPage === nav.key ? "0 4px 15px rgba(102, 126, 234, 0.3)" : "none",
+              }}
+            >
+              {nav.icon} {nav.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -366,7 +423,6 @@ function App() {
               border: "2px solid #d4af37",
             }}
           >
-            {/* Header */}
             <div style={{ textAlign: "center", padding: "25px 20px 15px" }}>
               <h1
                 style={{
@@ -396,55 +452,37 @@ function App() {
               </div>
             </div>
 
-            {/* Services */}
             <div style={{ padding: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
               <div style={{ color: "white" }}>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>PULSA ALL OPERATOR</span>
-                </div>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>TOKEN LISTRIK & TAGIHAN LISTRIK</span>
-                </div>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>TOP UP GAME (MOBILE LEGEND, FREE FIRE, PUBG, DLL.)</span>
-                </div>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>TOP UP DANA, SHOPEEPAY, GOPAY, OVO</span>
-                </div>
+                {[
+                  "PULSA ALL OPERATOR",
+                  "TOKEN LISTRIK & TAGIHAN LISTRIK", 
+                  "TOP UP GAME (MOBILE LEGEND, FREE FIRE, PUBG, DLL.)",
+                  "TOP UP DANA, SHOPEEPAY, GOPAY, OVO"
+                ].map((service, idx) => (
+                  <div key={idx} style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                    <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                    <span style={{ fontSize: "13px", lineHeight: "1.4" }}>{service}</span>
+                  </div>
+                ))}
               </div>
               <div style={{ color: "white" }}>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>PAKET DATA / KUOTA</span>
-                </div>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>PAKET TELEPON / SMS</span>
-                </div>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>BPJS & PDAM</span>
-                </div>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>VOUCHER WIFI 2000/JAM</span>
-                </div>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>ALAT TULIS & JAS HUJAN</span>
-                </div>
-                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>GAS LPG 3KG</span>
-                </div>
+                {[
+                  "PAKET DATA / KUOTA",
+                  "PAKET TELEPON / SMS",
+                  "BPJS & PDAM",
+                  "VOUCHER WIFI 2000/JAM",
+                  "ALAT TULIS & JAS HUJAN",
+                  "GAS LPG 3KG"
+                ].map((service, idx) => (
+                  <div key={idx} style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                    <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                    <span style={{ fontSize: "13px", lineHeight: "1.4" }}>{service}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Footer */}
             <div
               style={{
                 backgroundColor: "#d4af37",
@@ -859,7 +897,112 @@ function App() {
               border: "1px solid rgba(255,255,255,0.2)",
             }}
           >
-            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>Laporan Per Kategori</h3>
+            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>📅 Laporan Mingguan (4 Minggu Terakhir)</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
+              {getWeeklyReports().map((week, index) => (
+                <div
+                  key={index}
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "15px",
+                    padding: "15px",
+                    backgroundColor: "#f8fafc",
+                  }}
+                >
+                  <h4 style={{ margin: "0 0 8px 0", fontSize: "14px", color: "#1f2937", textAlign: "center" }}>
+                    {week.period}
+                  </h4>
+                  <p style={{ margin: "0 0 8px 0", fontSize: "12px", color: "#6b7280", textAlign: "center" }}>
+                    {week.label}
+                  </p>
+                  <div style={{ fontSize: "12px", lineHeight: "1.6" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ color: "#6b7280" }}>Pemasukan:</span>
+                      <span style={{ color: "#10b981", fontWeight: "600" }}>{formatCurrency(week.income)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ color: "#6b7280" }}>Pengeluaran:</span>
+                      <span style={{ color: "#ef4444", fontWeight: "600" }}>{formatCurrency(week.expense)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #e5e7eb", paddingTop: "4px", marginTop: "6px" }}>
+                      <span style={{ fontWeight: "600", color: "#374151" }}>Profit:</span>
+                      <span style={{ color: week.profit >= 0 ? "#10b981" : "#ef4444", fontWeight: "bold" }}>
+                        {formatCurrency(week.profit)}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
+                      <span style={{ color: "#6b7280", fontSize: "11px" }}>Transaksi:</span>
+                      <span style={{ color: "#6b7280", fontSize: "11px" }}>{week.transactions.length} item</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(10px)",
+              padding: "20px",
+              borderRadius: "20px",
+              marginBottom: "20px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+              border: "1px solid rgba(255,255,255,0.2)",
+            }}
+          >
+            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>📊 Laporan Bulanan (6 Bulan Terakhir)</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
+              {getMonthlyReports().map((month, index) => (
+                <div
+                  key={index}
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "15px",
+                    padding: "15px",
+                    backgroundColor: "#f8fafc",
+                  }}
+                >
+                  <h4 style={{ margin: "0 0 8px 0", fontSize: "14px", color: "#1f2937", textAlign: "center" }}>
+                    {month.period}
+                  </h4>
+                  <div style={{ fontSize: "12px", lineHeight: "1.6" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ color: "#6b7280" }}>Pemasukan:</span>
+                      <span style={{ color: "#10b981", fontWeight: "600" }}>{formatCurrency(month.income)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ color: "#6b7280" }}>Pengeluaran:</span>
+                      <span style={{ color: "#ef4444", fontWeight: "600" }}>{formatCurrency(month.expense)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #e5e7eb", paddingTop: "4px", marginTop: "6px" }}>
+                      <span style={{ fontWeight: "600", color: "#374151" }}>Profit:</span>
+                      <span style={{ color: month.profit >= 0 ? "#10b981" : "#ef4444", fontWeight: "bold" }}>
+                        {formatCurrency(month.profit)}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
+                      <span style={{ color: "#6b7280", fontSize: "11px" }}>Transaksi:</span>
+                      <span style={{ color: "#6b7280", fontSize: "11px" }}>{month.transactions.length} item</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(10px)",
+              padding: "20px",
+              borderRadius: "20px",
+              marginBottom: "20px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+              border: "1px solid rgba(255,255,255,0.2)",
+            }}
+          >
+            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>🏪 Laporan Per Kategori (Keseluruhan)</h3>
             <div
               style={{
                 display: "grid",
@@ -941,7 +1084,7 @@ function App() {
           >
             <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>💾 Download Laporan</h3>
             <p style={{ color: "#6b7280", marginBottom: "20px", fontSize: "14px" }}>
-              Download laporan keuangan lengkap Toko DGI dalam format teks
+              Download laporan keuangan lengkap dengan analisis mingguan dan bulanan
             </p>
 
             <button
@@ -989,7 +1132,7 @@ function App() {
               }}
             >
               <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 8px 0", lineHeight: "1.4" }}>
-                💡 File akan berisi ringkasan keuangan, laporan per kategori, dan detail semua transaksi
+                💡 File berisi ringkasan keseluruhan, laporan mingguan, bulanan, per kategori, dan detail transaksi
               </p>
               <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0", lineHeight: "1.4" }}>
                 📊 Data tersimpan otomatis di browser. Total transaksi: {transactions.length}
