@@ -1,20 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 function App() {
-  // Initialize state with localStorage data or empty array
-  const [transactions, setTransactions] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedData = localStorage.getItem("keuangan-toko-dgi");
-        return savedData ? JSON.parse(savedData) : [];
-      } catch (error) {
-        console.error("Error loading data from localStorage:", error);
-        return [];
-      }
-    }
-    return [];
-  });
-  
+  const [transactions, setTransactions] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState("income");
   const [selectedCategory, setSelectedCategory] = useState("Es Krim & Mainan");
@@ -23,30 +10,21 @@ function App() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [currentPage, setCurrentPage] = useState("dashboard");
   const [editingTransaction, setEditingTransaction] = useState(null);
-
-  // Save data to localStorage whenever transactions change
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem("keuangan-toko-dgi", JSON.stringify(transactions));
-        console.log("Data saved to localStorage:", transactions.length, "transactions");
-      } catch (error) {
-        console.error("Error saving data to localStorage:", error);
-      }
-    }
-  }, [transactions]);
+  const [selectedReportTab, setSelectedReportTab] = useState("ringkasan");
 
   const totalIncome = transactions
-    .filter((t) => t.type === "income")
+    .filter(t => t.type === "income")
     .reduce((sum, t) => sum + t.amount, 0);
+  
   const totalExpense = transactions
-    .filter((t) => t.type === "expense")
+    .filter(t => t.type === "expense")
     .reduce((sum, t) => sum + t.amount, 0);
+  
   const profit = totalIncome - totalExpense;
 
   const calculateTotal = (type, category) => {
     return transactions
-      .filter((t) => t.type === type && t.category === category)
+      .filter(t => t.type === type && t.category === category)
       .reduce((sum, t) => sum + t.amount, 0);
   };
 
@@ -58,7 +36,6 @@ function App() {
     }).format(amount);
   };
 
-  // Get date ranges
   const getWeekRange = (date) => {
     const d = new Date(date);
     const day = d.getDay();
@@ -115,40 +92,64 @@ function App() {
   const getWeeklyReports = () => {
     const reports = [];
     const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
     
-    for (let i = 0; i < 4; i++) {
-      const weekDate = new Date(today);
-      weekDate.setDate(today.getDate() - (i * 7));
-      const weekRange = getWeekRange(weekDate);
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+    
+    let weekStart = new Date(firstDayOfMonth);
+    let weekNumber = 1;
+    
+    while (weekStart <= lastDayOfMonth) {
+      let weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      
+      if (weekEnd > lastDayOfMonth) {
+        weekEnd = new Date(lastDayOfMonth);
+      }
+      
+      const weekRange = {
+        start: weekStart.toISOString().split('T')[0],
+        end: weekEnd.toISOString().split('T')[0],
+        label: `${weekStart.getDate()}/${weekStart.getMonth() + 1} - ${weekEnd.getDate()}/${weekEnd.getMonth() + 1}/${weekEnd.getFullYear()}`
+      };
+      
       const totals = calculateTotalsForRange(weekRange.start, weekRange.end);
       
       reports.push({
         ...weekRange,
         ...totals,
-        period: `Minggu ${i + 1}`
+        period: `Minggu ${weekNumber}`
       });
+      
+      weekStart = new Date(weekEnd);
+      weekStart.setDate(weekEnd.getDate() + 1);
+      weekNumber++;
     }
     
-    return reports.reverse();
+    return reports;
   };
 
   const getMonthlyReports = () => {
     const reports = [];
     const today = new Date();
+    const currentYear = today.getFullYear();
     
-    for (let i = 0; i < 6; i++) {
-      const monthDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    for (let month = 0; month < 12; month++) {
+      const monthDate = new Date(currentYear, month, 1);
       const monthRange = getMonthRange(monthDate);
       const totals = calculateTotalsForRange(monthRange.start, monthRange.end);
       
       reports.push({
         ...monthRange,
         ...totals,
-        period: monthRange.label
+        period: monthRange.label,
+        isCurrentMonth: month === today.getMonth()
       });
     }
     
-    return reports.reverse();
+    return reports;
   };
 
   const handleSubmit = () => {
@@ -158,19 +159,17 @@ function App() {
     }
 
     if (editingTransaction) {
-      setTransactions(
-        transactions.map((t) =>
-          t.id === editingTransaction.id
-            ? {
-                ...t,
-                amount: parseFloat(amount),
-                category: selectedCategory,
-                date: date,
-                description: description || "",
-              }
-            : t
-        )
-      );
+      setTransactions(transactions.map(t =>
+        t.id === editingTransaction.id
+          ? {
+              ...t,
+              amount: parseFloat(amount),
+              category: selectedCategory,
+              date: date,
+              description: description || "",
+            }
+          : t
+      ));
       setEditingTransaction(null);
     } else {
       const newTransaction = {
@@ -200,85 +199,66 @@ function App() {
   };
 
   const clearAllData = () => {
-    if (
-      window.confirm(
-        "Apakah Anda yakin ingin menghapus semua data? Tindakan ini tidak dapat dibatalkan."
-      )
-    ) {
+    if (window.confirm("Apakah Anda yakin ingin menghapus semua data?")) {
       setTransactions([]);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem("keuangan-toko-dgi");
-      }
       alert("Semua data telah dihapus!");
     }
   };
 
   const downloadReport = () => {
     const today = new Date().toLocaleDateString("id-ID");
-    let content = "";
-    content = content + "========================================\n";
-    content = content + "       LAPORAN KEUANGAN TOKO DGI\n";
-    content = content + "========================================\n";
-    content = content + "Tanggal: " + today + "\n\n";
+    let content = "========================================\n";
+    content += "       LAPORAN KEUANGAN TOKO DGI\n";
+    content += "========================================\n";
+    content += "Tanggal: " + today + "\n\n";
+    content += "RINGKASAN KEUANGAN:\n";
+    content += "----------------------------------------\n";
+    content += "Total Pemasukan    : " + formatCurrency(totalIncome) + "\n";
+    content += "Total Pengeluaran  : " + formatCurrency(totalExpense) + "\n";
+    content += "Keuntungan Bersih  : " + formatCurrency(profit) + "\n\n";
 
-    content = content + "RINGKASAN KEUANGAN KESELURUHAN:\n";
-    content = content + "----------------------------------------\n";
-    content = content + "Total Pemasukan    : " + formatCurrency(totalIncome) + "\n";
-    content = content + "Total Pengeluaran  : " + formatCurrency(totalExpense) + "\n";
-    content = content + "Keuntungan Bersih  : " + formatCurrency(profit) + "\n\n";
-
-    // Weekly Reports
-    content = content + "LAPORAN MINGGUAN (4 MINGGU TERAKHIR):\n";
-    content = content + "----------------------------------------\n";
+    content += "LAPORAN MINGGUAN BULAN INI:\n";
+    content += "----------------------------------------\n";
     const weeklyReports = getWeeklyReports();
     weeklyReports.forEach((week, index) => {
-      content = content + `\n${week.period} (${week.label}):\n`;
-      content = content + "  Pemasukan    : " + formatCurrency(week.income) + "\n";
-      content = content + "  Pengeluaran  : " + formatCurrency(week.expense) + "\n";
-      content = content + "  Keuntungan   : " + formatCurrency(week.profit) + "\n";
-      content = content + "  Transaksi    : " + week.transactions.length + " item\n";
+      content += `\n${week.period} (${week.label}):\n`;
+      content += "  Pemasukan    : " + formatCurrency(week.income) + "\n";
+      content += "  Pengeluaran  : " + formatCurrency(week.expense) + "\n";
+      content += "  Keuntungan   : " + formatCurrency(week.profit) + "\n";
+      content += "  Transaksi    : " + week.transactions.length + " item\n";
     });
 
-    // Monthly Reports
-    content = content + "\n\nLAPORAN BULANAN (6 BULAN TERAKHIR):\n";
-    content = content + "----------------------------------------\n";
+    content += "\n\nLAPORAN BULANAN TAHUN INI:\n";
+    content += "----------------------------------------\n";
     const monthlyReports = getMonthlyReports();
     monthlyReports.forEach((month, index) => {
-      content = content + `\n${month.period}:\n`;
-      content = content + "  Pemasukan    : " + formatCurrency(month.income) + "\n";
-      content = content + "  Pengeluaran  : " + formatCurrency(month.expense) + "\n";
-      content = content + "  Keuntungan   : " + formatCurrency(month.profit) + "\n";
-      content = content + "  Transaksi    : " + month.transactions.length + " item\n";
+      content += `\n${month.period}:\n`;
+      content += "  Pemasukan    : " + formatCurrency(month.income) + "\n";
+      content += "  Pengeluaran  : " + formatCurrency(month.expense) + "\n";
+      content += "  Keuntungan   : " + formatCurrency(month.profit) + "\n";
+      content += "  Transaksi    : " + month.transactions.length + " item\n";
     });
 
-    content = content + "\n\nLAPORAN PER KATEGORI:\n";
-    content = content + "----------------------------------------\n";
-
     const categories = ["Es Krim & Mainan", "Gas"];
-    for (let i = 0; i < categories.length; i++) {
-      const category = categories[i];
+    content += "\n\nLAPORAN PER KATEGORI:\n";
+    content += "----------------------------------------\n";
+    categories.forEach(category => {
       const income = calculateTotal("income", category);
       const expense = calculateTotal("expense", category);
       const categoryProfit = income - expense;
+      content += "\n" + category + ":\n";
+      content += "  Pemasukan    : " + formatCurrency(income) + "\n";
+      content += "  Pengeluaran  : " + formatCurrency(expense) + "\n";
+      content += "  Keuntungan   : " + formatCurrency(categoryProfit) + "\n";
+    });
 
-      content = content + "\n" + category + ":\n";
-      content = content + "  Pemasukan    : " + formatCurrency(income) + "\n";
-      content = content + "  Pengeluaran  : " + formatCurrency(expense) + "\n";
-      content = content + "  Keuntungan   : " + formatCurrency(categoryProfit) + "\n";
-    }
-
-    content = content + "\n\nDETAIL TRANSAKSI:\n";
-    content = content + "----------------------------------------\n";
-    for (let i = 0; i < transactions.length; i++) {
-      const t = transactions[i];
+    content += "\n\nDETAIL TRANSAKSI:\n";
+    content += "----------------------------------------\n";
+    transactions.forEach((t, i) => {
       const jenis = t.type === "income" ? "Pemasukan" : "Pengeluaran";
       const desc = t.description ? " - " + t.description : "";
-      content = content + (i + 1) + ". " + t.date + " | " + t.category + " | " + jenis + " | " + formatCurrency(t.amount) + desc + "\n";
-    }
-
-    content = content + "\n========================================\n";
-    content = content + "           Generated by Toko DGI\n";
-    content = content + "========================================\n";
+      content += (i + 1) + ". " + t.date + " | " + t.category + " | " + jenis + " | " + formatCurrency(t.amount) + desc + "\n";
+    });
 
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = window.URL.createObjectURL(blob);
@@ -289,116 +269,96 @@ function App() {
     window.URL.revokeObjectURL(url);
   };
 
-  const backgroundStyle = {
+  // Style objects
+  const containerStyle = {
     minHeight: "100vh",
     background: "linear-gradient(135deg, rgba(0, 20, 40, 0.95) 0%, rgba(0, 40, 80, 0.9) 100%)",
     fontFamily: "system-ui, -apple-system, sans-serif",
-    padding: "10px",
-    position: "relative",
+    padding: "10px"
+  };
+
+  const headerStyle = {
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    backdropFilter: "blur(10px)",
+    padding: "15px 20px",
+    borderRadius: "20px",
+    marginBottom: "15px",
+    textAlign: "center",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+    border: "1px solid rgba(255,255,255,0.2)"
+  };
+
+  const navigationStyle = {
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    backdropFilter: "blur(10px)",
+    padding: "8px",
+    borderRadius: "20px",
+    marginBottom: "15px",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+    border: "1px solid rgba(255,255,255,0.2)"
+  };
+
+  const cardStyle = {
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    padding: "20px",
+    borderRadius: "20px",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
   };
 
   return (
-    <div style={backgroundStyle}>
+    <div style={containerStyle}>
       {/* Header */}
-      <div
-        style={{
-          backgroundColor: "rgba(255, 255, 255, 0.95)",
-          backdropFilter: "blur(10px)",
-          padding: "15px 20px",
-          borderRadius: "20px",
-          marginBottom: "15px",
-          textAlign: "center",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-          border: "1px solid rgba(255,255,255,0.2)",
-        }}
-      >
-        <div
-          style={{
+      <div style={headerStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
+          <div style={{
+            width: "45px",
+            height: "45px",
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "12px",
-          }}
-        >
-          <div
-            style={{
-              width: "45px",
-              height: "45px",
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 4px 15px rgba(102, 126, 234, 0.3)",
-            }}
-          >
+            boxShadow: "0 4px 15px rgba(102, 126, 234, 0.3)"
+          }}>
             <span style={{ color: "white", fontSize: "20px" }}>✓</span>
           </div>
-          <h1
-            style={{
-              fontSize: "22px",
-              margin: "0",
-              color: "#1a202c",
-              fontWeight: "700",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
+          <h1 style={{
+            fontSize: "22px",
+            margin: "0",
+            color: "#1a202c",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent"
+          }}>
             Keuangan Toko DGI
           </h1>
         </div>
       </div>
 
       {/* Navigation */}
-      <div
-        style={{
-          backgroundColor: "rgba(255, 255, 255, 0.95)",
-          backdropFilter: "blur(10px)",
-          padding: "8px",
-          borderRadius: "20px",
-          marginBottom: "15px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-          border: "1px solid rgba(255,255,255,0.2)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: "4px",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-          }}
-        >
+      <div style={navigationStyle}>
+        <div style={{ display: "flex", gap: "4px", justifyContent: "space-between" }}>
           {[
-            { key: "dashboard", icon: "📊", label: "Dashboard" },
-            { key: "pemasukan", icon: "💰", label: "Masuk" }, 
-            { key: "pengeluaran", icon: "💸", label: "Keluar" },
-            { key: "transaksi", icon: "📋", label: "Data" },
-            { key: "laporan", icon: "📊", label: "Report" }
-          ].map((nav) => (
+            { key: "dashboard", icon: "📊", label: "Dashboard", color: "#667eea" },
+            { key: "pemasukan", icon: "💰", label: "Masuk", color: "#10b981" },
+            { key: "pengeluaran", icon: "💸", label: "Keluar", color: "#ef4444" },
+            { key: "transaksi", icon: "📋", label: "Data", color: "#f59e0b" },
+            { key: "laporan", icon: "📊", label: "Report", color: "#6366f1" }
+          ].map(nav => (
             <button
               key={nav.key}
               onClick={() => setCurrentPage(nav.key)}
               style={{
                 flex: "1",
-                minWidth: "60px",
                 padding: "12px 8px",
-                background: currentPage === nav.key 
-                  ? nav.key === "dashboard" ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                  : nav.key === "pemasukan" ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-                  : nav.key === "pengeluaran" ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
-                  : nav.key === "transaksi" ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
-                  : "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)"
-                  : "transparent",
+                background: currentPage === nav.key ? `linear-gradient(135deg, ${nav.color} 0%, ${nav.color}dd 100%)` : "transparent",
                 color: currentPage === nav.key ? "white" : "#64748b",
                 border: "none",
-                borderRadius: "16px",
+                borderRadius: "12px",
                 cursor: "pointer",
                 fontSize: "11px",
-                fontWeight: "600",
-                transition: "all 0.3s ease",
-                boxShadow: currentPage === nav.key ? "0 4px 15px rgba(102, 126, 234, 0.3)" : "none",
+                fontWeight: "600"
               }}
             >
               {nav.icon} {nav.label}
@@ -410,164 +370,103 @@ function App() {
       {/* Dashboard */}
       {currentPage === "dashboard" && (
         <div>
-          {/* DGI Hotspot Banner */}
-          <div
-            style={{
-              backgroundColor: "#4a2c2a",
-              borderRadius: "25px",
-              padding: "0",
-              marginBottom: "15px",
-              boxShadow: "0 8px 32px rgba(74, 44, 42, 0.3)",
-              overflow: "hidden",
-              position: "relative",
-              border: "2px solid #d4af37",
-            }}
-          >
+          {/* DGI Banner */}
+          <div style={{
+            backgroundColor: "#4a2c2a",
+            borderRadius: "25px",
+            marginBottom: "15px",
+            boxShadow: "0 8px 32px rgba(74, 44, 42, 0.3)",
+            border: "2px solid #d4af37"
+          }}>
             <div style={{ textAlign: "center", padding: "25px 20px 15px" }}>
-              <h1
-                style={{
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                  color: "#d4af37",
-                  margin: "0 0 12px 0",
-                  letterSpacing: "2px",
-                  textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
-                }}
-              >
+              <h1 style={{
+                fontSize: "28px",
+                fontWeight: "bold", 
+                color: "#d4af37",
+                margin: "0 0 12px 0",
+                letterSpacing: "2px"
+              }}>
                 DGI HOTSPOT
               </h1>
-              <div
-                style={{
-                  backgroundColor: "#d4af37",
-                  color: "#4a2c2a",
-                  padding: "8px 0",
-                  fontSize: "14px",
-                  fontWeight: "bold",
-                  letterSpacing: "1px",
-                  margin: "0 -20px",
-                  boxShadow: "inset 0 2px 4px rgba(0,0,0,0.1)",
-                }}
-              >
+              <div style={{
+                backgroundColor: "#d4af37",
+                color: "#4a2c2a",
+                padding: "8px 0",
+                fontSize: "14px",
+                fontWeight: "bold",
+                margin: "0 -20px"
+              }}>
                 MENYEDIAKAN
               </div>
             </div>
 
             <div style={{ padding: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
               <div style={{ color: "white" }}>
-                {[
-                  "PULSA ALL OPERATOR",
-                  "TOKEN LISTRIK & TAGIHAN LISTRIK", 
-                  "TOP UP GAME (MOBILE LEGEND, FREE FIRE, PUBG, DLL.)",
-                  "TOP UP DANA, SHOPEEPAY, GOPAY, OVO"
-                ].map((service, idx) => (
-                  <div key={idx} style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                    <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                    <span style={{ fontSize: "13px", lineHeight: "1.4" }}>{service}</span>
+                {["PULSA ALL OPERATOR", "TOKEN LISTRIK & TAGIHAN", "TOP UP GAME", "TOP UP E-WALLET"].map((service, idx) => (
+                  <div key={idx} style={{ marginBottom: "12px", display: "flex", gap: "8px" }}>
+                    <span style={{ color: "#d4af37" }}>•</span>
+                    <span style={{ fontSize: "13px" }}>{service}</span>
                   </div>
                 ))}
               </div>
               <div style={{ color: "white" }}>
-                {[
-                  "PAKET DATA / KUOTA",
-                  "PAKET TELEPON / SMS",
-                  "BPJS & PDAM",
-                  "VOUCHER WIFI 2000/JAM",
-                  "ALAT TULIS & JAS HUJAN",
-                  "GAS LPG 3KG"
-                ].map((service, idx) => (
-                  <div key={idx} style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                    <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
-                    <span style={{ fontSize: "13px", lineHeight: "1.4" }}>{service}</span>
+                {["PAKET DATA / KUOTA", "PAKET TELEPON / SMS", "BPJS & PDAM", "VOUCHER WIFI", "ALAT TULIS", "GAS LPG 3KG"].map((service, idx) => (
+                  <div key={idx} style={{ marginBottom: "12px", display: "flex", gap: "8px" }}>
+                    <span style={{ color: "#d4af37" }}>•</span>
+                    <span style={{ fontSize: "13px" }}>{service}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div
-              style={{
-                backgroundColor: "#d4af37",
-                color: "#4a2c2a",
-                padding: "12px 20px",
-                fontSize: "12px",
-                fontWeight: "bold",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ marginBottom: "8px" }}>
-                <span style={{ fontSize: "14px", marginRight: "6px" }}>📍</span>
-                <span>PILAR, SAMPING WARUNG & LAUNDRY</span>
-              </div>
-              <div>
-                <span style={{ fontSize: "14px", marginRight: "6px" }}>📱</span>
-                <span>082218472975</span>
-              </div>
+            <div style={{
+              backgroundColor: "#d4af37",
+              color: "#4a2c2a",
+              padding: "12px 20px",
+              fontSize: "12px",
+              fontWeight: "bold",
+              textAlign: "center"
+            }}>
+              <div style={{ marginBottom: "8px" }}>📍 PILAR, SAMPING WARUNG & LAUNDRY</div>
+              <div>📱 082218472975</div>
             </div>
           </div>
 
-          {/* Financial Summary Cards */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: "12px",
-              marginBottom: "15px",
-            }}
-          >
-            <div
-              style={{
-                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                padding: "20px",
-                borderRadius: "20px",
-                textAlign: "center",
-                boxShadow: "0 8px 32px rgba(16, 185, 129, 0.3)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "white",
-              }}
-            >
-              <div style={{ fontSize: "12px", opacity: "0.9", marginBottom: "8px", fontWeight: "500" }}>
-                Total Pemasukan
-              </div>
-              <div style={{ fontSize: "20px", fontWeight: "bold" }}>
-                {formatCurrency(totalIncome)}
-              </div>
+          {/* Summary Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
+            <div style={{
+              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+              padding: "20px",
+              borderRadius: "20px",
+              textAlign: "center",
+              color: "white"
+            }}>
+              <div style={{ fontSize: "12px", marginBottom: "8px" }}>Total Pemasukan</div>
+              <div style={{ fontSize: "20px", fontWeight: "bold" }}>{formatCurrency(totalIncome)}</div>
             </div>
-
-            <div
-              style={{
-                background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-                padding: "20px",
-                borderRadius: "20px",
-                textAlign: "center",
-                boxShadow: "0 8px 32px rgba(239, 68, 68, 0.3)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "white",
-              }}
-            >
-              <div style={{ fontSize: "12px", opacity: "0.9", marginBottom: "8px", fontWeight: "500" }}>
-                Total Pengeluaran
-              </div>
-              <div style={{ fontSize: "20px", fontWeight: "bold" }}>
-                {formatCurrency(totalExpense)}
-              </div>
+            
+            <div style={{
+              background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+              padding: "20px",
+              borderRadius: "20px", 
+              textAlign: "center",
+              color: "white"
+            }}>
+              <div style={{ fontSize: "12px", marginBottom: "8px" }}>Total Pengeluaran</div>
+              <div style={{ fontSize: "20px", fontWeight: "bold" }}>{formatCurrency(totalExpense)}</div>
             </div>
-
-            <div
-              style={{
-                background: profit >= 0 ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)" : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-                padding: "20px",
-                borderRadius: "20px",
-                textAlign: "center",
-                boxShadow: profit >= 0 ? "0 8px 32px rgba(59, 130, 246, 0.3)" : "0 8px 32px rgba(245, 158, 11, 0.3)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "white",
-              }}
-            >
-              <div style={{ fontSize: "12px", opacity: "0.9", marginBottom: "8px", fontWeight: "500" }}>
+            
+            <div style={{
+              background: profit >= 0 ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)" : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+              padding: "20px",
+              borderRadius: "20px",
+              textAlign: "center", 
+              color: "white"
+            }}>
+              <div style={{ fontSize: "12px", marginBottom: "8px" }}>
                 {profit >= 0 ? "Keuntungan" : "Kerugian"}
               </div>
-              <div style={{ fontSize: "20px", fontWeight: "bold" }}>
-                {formatCurrency(Math.abs(profit))}
-              </div>
+              <div style={{ fontSize: "20px", fontWeight: "bold" }}>{formatCurrency(Math.abs(profit))}</div>
             </div>
           </div>
         </div>
@@ -576,36 +475,12 @@ function App() {
       {/* Pemasukan */}
       {currentPage === "pemasukan" && (
         <div>
-          <h2
-            style={{
-              marginBottom: "20px",
-              color: "white",
-              textAlign: "center",
-              fontSize: "20px",
-              textShadow: "2px 2px 4px rgba(0,0,0,0.5)",
-            }}
-          >
+          <h2 style={{ marginBottom: "20px", color: "white", textAlign: "center", fontSize: "20px" }}>
             💰 Tambah Pemasukan
           </h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-              gap: "15px",
-            }}
-          >
-            {["Es Krim & Mainan", "Gas"].map((category) => (
-              <div
-                key={category}
-                style={{
-                  backgroundColor: "rgba(255, 255, 255, 0.95)",
-                  backdropFilter: "blur(10px)",
-                  padding: "20px",
-                  borderRadius: "20px",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                }}
-              >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "15px" }}>
+            {["Es Krim & Mainan", "Gas"].map(category => (
+              <div key={category} style={cardStyle}>
                 <h3 style={{ marginBottom: "15px", color: "#1f2937", textAlign: "center" }}>
                   {category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"} {category}
                 </h3>
@@ -624,8 +499,7 @@ function App() {
                     borderRadius: "15px",
                     cursor: "pointer",
                     fontSize: "14px",
-                    fontWeight: "600",
-                    boxShadow: "0 4px 15px rgba(16, 185, 129, 0.3)",
+                    fontWeight: "600"
                   }}
                 >
                   + Tambah Pemasukan
@@ -639,36 +513,12 @@ function App() {
       {/* Pengeluaran */}
       {currentPage === "pengeluaran" && (
         <div>
-          <h2
-            style={{
-              marginBottom: "20px",
-              color: "white",
-              textAlign: "center",
-              fontSize: "20px",
-              textShadow: "2px 2px 4px rgba(0,0,0,0.5)",
-            }}
-          >
+          <h2 style={{ marginBottom: "20px", color: "white", textAlign: "center", fontSize: "20px" }}>
             💸 Tambah Pengeluaran
           </h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-              gap: "15px",
-            }}
-          >
-            {["Es Krim & Mainan", "Gas"].map((category) => (
-              <div
-                key={category}
-                style={{
-                  backgroundColor: "rgba(255, 255, 255, 0.95)",
-                  backdropFilter: "blur(10px)",
-                  padding: "20px",
-                  borderRadius: "20px",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                }}
-              >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "15px" }}>
+            {["Es Krim & Mainan", "Gas"].map(category => (
+              <div key={category} style={cardStyle}>
                 <h3 style={{ marginBottom: "15px", color: "#1f2937", textAlign: "center" }}>
                   {category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"} {category}
                 </h3>
@@ -687,8 +537,7 @@ function App() {
                     borderRadius: "15px",
                     cursor: "pointer",
                     fontSize: "14px",
-                    fontWeight: "600",
-                    boxShadow: "0 4px 15px rgba(239, 68, 68, 0.3)",
+                    fontWeight: "600"
                   }}
                 >
                   - Tambah Pengeluaran
@@ -702,55 +551,37 @@ function App() {
       {/* Transaksi */}
       {currentPage === "transaksi" && (
         <div>
-          <h2
-            style={{
-              marginBottom: "20px",
-              color: "white",
-              textAlign: "center",
-              fontSize: "20px",
-              textShadow: "2px 2px 4px rgba(0,0,0,0.5)",
-            }}
-          >
+          <h2 style={{ marginBottom: "20px", color: "white", textAlign: "center", fontSize: "20px" }}>
             📋 Daftar Transaksi
           </h2>
-          <div
-            style={{
-              backgroundColor: "rgba(255, 255, 255, 0.95)",
-              backdropFilter: "blur(10px)",
-              borderRadius: "20px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-              border: "1px solid rgba(255,255,255,0.2)",
-            }}
-          >
+          <div style={{
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
+            borderRadius: "20px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
+          }}>
             {transactions.length === 0 ? (
               <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>
                 Belum ada transaksi
               </div>
             ) : (
-              transactions.map((transaction) => (
-                <div
-                  key={transaction.id}
-                  style={{
-                    padding: "15px 20px",
-                    borderBottom: "1px solid #f3f4f6",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
+              transactions.map(transaction => (
+                <div key={transaction.id} style={{
+                  padding: "15px 20px",
+                  borderBottom: "1px solid #f3f4f6",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "5px" }}>
                       {transaction.category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"}
-                      <span
-                        style={{
-                          padding: "2px 8px",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                          fontWeight: "500",
-                          backgroundColor: transaction.type === "income" ? "#dcfce7" : "#fee2e2",
-                          color: transaction.type === "income" ? "#166534" : "#dc2626",
-                        }}
-                      >
+                      <span style={{
+                        padding: "2px 8px",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        backgroundColor: transaction.type === "income" ? "#dcfce7" : "#fee2e2",
+                        color: transaction.type === "income" ? "#166534" : "#dc2626"
+                      }}>
                         {transaction.type === "income" ? "Pemasukan" : "Pengeluaran"}
                       </span>
                       <span style={{ fontSize: "12px", color: "#6b7280" }}>
@@ -767,29 +598,26 @@ function App() {
                     </p>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <p
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: "bold",
-                        color: transaction.type === "income" ? "#16a34a" : "#dc2626",
-                        margin: "0 0 8px 0",
-                      }}
-                    >
+                    <p style={{
+                      fontSize: "18px",
+                      fontWeight: "bold",
+                      color: transaction.type === "income" ? "#16a34a" : "#dc2626",
+                      margin: "0 0 8px 0"
+                    }}>
                       {transaction.type === "income" ? "+" : "-"}
                       {formatCurrency(transaction.amount)}
                     </p>
-                    <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                    <div style={{ display: "flex", gap: "8px" }}>
                       <button
                         onClick={() => handleEdit(transaction)}
                         style={{
                           fontSize: "12px",
                           color: "#3b82f6",
-                          background: "none",
+                          background: "#eff6ff",
                           border: "none",
                           cursor: "pointer",
                           padding: "4px 8px",
-                          borderRadius: "8px",
-                          backgroundColor: "#eff6ff",
+                          borderRadius: "8px"
                         }}
                       >
                         ✏️ Edit
@@ -797,18 +625,17 @@ function App() {
                       <button
                         onClick={() => {
                           if (window.confirm("Hapus transaksi?")) {
-                            setTransactions(transactions.filter((t) => t.id !== transaction.id));
+                            setTransactions(transactions.filter(t => t.id !== transaction.id));
                           }
                         }}
                         style={{
                           fontSize: "12px",
                           color: "#ef4444",
-                          background: "none",
+                          background: "#fef2f2",
                           border: "none",
                           cursor: "pointer",
                           padding: "4px 8px",
-                          borderRadius: "8px",
-                          backgroundColor: "#fef2f2",
+                          borderRadius: "8px"
                         }}
                       >
                         🗑️ Hapus
@@ -825,352 +652,501 @@ function App() {
       {/* Laporan */}
       {currentPage === "laporan" && (
         <div>
-          <h2
-            style={{
-              marginBottom: "20px",
-              color: "white",
-              textAlign: "center",
-              fontSize: "20px",
-              textShadow: "2px 2px 4px rgba(0,0,0,0.5)",
-            }}
-          >
-            📊 Laporan Keuangan
+          <h2 style={{ marginBottom: "20px", color: "white", textAlign: "center", fontSize: "20px" }}>
+            📊 Laporan & Analisis Keuangan
           </h2>
 
-          <div
-            style={{
-              backgroundColor: "rgba(255, 255, 255, 0.95)",
-              backdropFilter: "blur(10px)",
-              padding: "20px",
-              borderRadius: "20px",
-              marginBottom: "20px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-              border: "1px solid rgba(255,255,255,0.2)",
-            }}
-          >
-            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>Ringkasan Keuangan</h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: "15px",
-              }}
-            >
-              <div style={{ textAlign: "center", padding: "15px", backgroundColor: "#f0fdf4", borderRadius: "15px" }}>
-                <div style={{ fontSize: "14px", color: "#16a34a", marginBottom: "5px" }}>Total Pemasukan</div>
-                <div style={{ fontSize: "18px", fontWeight: "bold", color: "#15803d" }}>
-                  {formatCurrency(totalIncome)}
-                </div>
-              </div>
-              <div style={{ textAlign: "center", padding: "15px", backgroundColor: "#fef2f2", borderRadius: "15px" }}>
-                <div style={{ fontSize: "14px", color: "#dc2626", marginBottom: "5px" }}>Total Pengeluaran</div>
-                <div style={{ fontSize: "18px", fontWeight: "bold", color: "#dc2626" }}>
-                  {formatCurrency(totalExpense)}
-                </div>
-              </div>
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "15px",
-                  backgroundColor: profit >= 0 ? "#eff6ff" : "#fff7ed",
-                  borderRadius: "15px",
-                }}
-              >
-                <div style={{ fontSize: "14px", color: profit >= 0 ? "#2563eb" : "#ea580c", marginBottom: "5px" }}>
-                  {profit >= 0 ? "Keuntungan" : "Kerugian"}
-                </div>
-                <div style={{ fontSize: "18px", fontWeight: "bold", color: profit >= 0 ? "#1d4ed8" : "#ea580c" }}>
-                  {formatCurrency(Math.abs(profit))}
-                </div>
-              </div>
+          {/* Tabs for different reports */}
+          <div style={{
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
+            padding: "8px",
+            borderRadius: "20px",
+            marginBottom: "15px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
+          }}>
+            <div style={{ display: "flex", gap: "4px", justifyContent: "space-between" }}>
+              {[
+                { key: "ringkasan", icon: "📊", label: "Ringkasan" },
+                { key: "mingguan", icon: "📅", label: "Mingguan" },
+                { key: "bulanan", icon: "📆", label: "Bulanan" },
+                { key: "kategori", icon: "🏪", label: "Kategori" },
+                { key: "export", icon: "💾", label: "Export" }
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setSelectedReportTab(tab.key)}
+                  style={{
+                    flex: "1",
+                    padding: "10px 6px",
+                    background: selectedReportTab === tab.key ? "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)" : "transparent",
+                    color: selectedReportTab === tab.key ? "white" : "#64748b",
+                    border: "none",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    fontSize: "10px",
+                    fontWeight: "600"
+                  }}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div
-            style={{
-              backgroundColor: "rgba(255, 255, 255, 0.95)",
-              backdropFilter: "blur(10px)",
-              padding: "20px",
-              borderRadius: "20px",
-              marginBottom: "20px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-              border: "1px solid rgba(255,255,255,0.2)",
-            }}
-          >
-            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>📅 Laporan Mingguan (4 Minggu Terakhir)</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
-              {getWeeklyReports().map((week, index) => (
-                <div
-                  key={index}
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "15px",
-                    padding: "15px",
-                    backgroundColor: "#f8fafc",
-                  }}
-                >
-                  <h4 style={{ margin: "0 0 8px 0", fontSize: "14px", color: "#1f2937", textAlign: "center" }}>
-                    {week.period}
-                  </h4>
-                  <p style={{ margin: "0 0 8px 0", fontSize: "12px", color: "#6b7280", textAlign: "center" }}>
-                    {week.label}
+          {/* Ringkasan Tab */}
+          {selectedReportTab === "ringkasan" && (
+            <div>
+              <div style={{
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                padding: "20px",
+                borderRadius: "20px",
+                marginBottom: "20px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
+              }}>
+                <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>Ringkasan Keuangan Keseluruhan</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "15px" }}>
+                  <div style={{ textAlign: "center", padding: "15px", backgroundColor: "#f0fdf4", borderRadius: "15px" }}>
+                    <div style={{ fontSize: "14px", color: "#16a34a", marginBottom: "5px" }}>Total Pemasukan</div>
+                    <div style={{ fontSize: "18px", fontWeight: "bold", color: "#15803d" }}>
+                      {formatCurrency(totalIncome)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center", padding: "15px", backgroundColor: "#fef2f2", borderRadius: "15px" }}>
+                    <div style={{ fontSize: "14px", color: "#dc2626", marginBottom: "5px" }}>Total Pengeluaran</div>
+                    <div style={{ fontSize: "18px", fontWeight: "bold", color: "#dc2626" }}>
+                      {formatCurrency(totalExpense)}
+                    </div>
+                  </div>
+                  <div style={{ 
+                    textAlign: "center", 
+                    padding: "15px", 
+                    backgroundColor: profit >= 0 ? "#eff6ff" : "#fff7ed", 
+                    borderRadius: "15px" 
+                  }}>
+                    <div style={{ 
+                      fontSize: "14px", 
+                      color: profit >= 0 ? "#2563eb" : "#ea580c", 
+                      marginBottom: "5px" 
+                    }}>
+                      {profit >= 0 ? "Keuntungan" : "Kerugian"}
+                    </div>
+                    <div style={{ 
+                      fontSize: "18px", 
+                      fontWeight: "bold", 
+                      color: profit >= 0 ? "#1d4ed8" : "#ea580c" 
+                    }}>
+                      {formatCurrency(Math.abs(profit))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Laporan Mingguan Tab */}
+          {selectedReportTab === "mingguan" && (
+            <div>
+              <div style={{
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                padding: "20px",
+                borderRadius: "20px",
+                marginBottom: "20px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
+              }}>
+                <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                  <h3 style={{ color: "#1f2937", margin: "0 0 8px 0" }}>
+                    📅 Laporan Mingguan - {getMonthName(new Date().getMonth())} {new Date().getFullYear()}
+                  </h3>
+                  <p style={{ color: "#6b7280", margin: "0", fontSize: "14px" }}>
+                    Analisis keuangan per minggu dalam bulan ini
                   </p>
-                  <div style={{ fontSize: "12px", lineHeight: "1.6" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <span style={{ color: "#6b7280" }}>Pemasukan:</span>
-                      <span style={{ color: "#10b981", fontWeight: "600" }}>{formatCurrency(week.income)}</span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px" }}>
+                  {getWeeklyReports().map((week, index) => (
+                    <div key={index} style={{
+                      border: "2px solid #06b6d4",
+                      borderRadius: "20px",
+                      padding: "20px",
+                      backgroundColor: "#f0fdff",
+                      boxShadow: "0 4px 20px rgba(6, 182, 212, 0.1)"
+                    }}>
+                      <div style={{ textAlign: "center", marginBottom: "15px" }}>
+                        <h4 style={{ margin: "0 0 5px 0", fontSize: "18px", color: "#0891b2", fontWeight: "bold" }}>
+                          {week.period}
+                        </h4>
+                        <p style={{ margin: "0", fontSize: "13px", color: "#0891b2" }}>
+                          {week.label}
+                        </p>
+                      </div>
+                      
+                      <div style={{ fontSize: "14px", lineHeight: "1.8" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", padding: "8px 0", borderBottom: "1px solid #e0f7fa" }}>
+                          <span style={{ color: "#374151", fontWeight: "500" }}>💰 Pemasukan:</span>
+                          <span style={{ color: "#10b981", fontWeight: "700", fontSize: "15px" }}>{formatCurrency(week.income)}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", padding: "8px 0", borderBottom: "1px solid #e0f7fa" }}>
+                          <span style={{ color: "#374151", fontWeight: "500" }}>💸 Pengeluaran:</span>
+                          <span style={{ color: "#ef4444", fontWeight: "700", fontSize: "15px" }}>{formatCurrency(week.expense)}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", padding: "12px 0", backgroundColor: "rgba(6, 182, 212, 0.1)", borderRadius: "10px", paddingLeft: "12px", paddingRight: "12px" }}>
+                          <span style={{ fontWeight: "700", color: "#0891b2" }}>📊 Keuntungan:</span>
+                          <span style={{ color: week.profit >= 0 ? "#10b981" : "#ef4444", fontWeight: "bold", fontSize: "16px" }}>
+                            {formatCurrency(week.profit)}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "12px" }}>
+                          <span style={{ color: "#6b7280", fontSize: "12px" }}>📋 Total Transaksi:</span>
+                          <span style={{ color: "#0891b2", fontSize: "12px", fontWeight: "600" }}>{week.transactions.length} item</span>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <span style={{ color: "#6b7280" }}>Pengeluaran:</span>
-                      <span style={{ color: "#ef4444", fontWeight: "600" }}>{formatCurrency(week.expense)}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Laporan Bulanan Tab */}
+          {selectedReportTab === "bulanan" && (
+            <div>
+              <div style={{
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                padding: "20px",
+                borderRadius: "20px",
+                marginBottom: "20px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
+              }}>
+                <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                  <h3 style={{ color: "#1f2937", margin: "0 0 8px 0" }}>
+                    📆 Laporan Bulanan - Tahun {new Date().getFullYear()}
+                  </h3>
+                  <p style={{ color: "#6b7280", margin: "0", fontSize: "14px" }}>
+                    Analisis keuangan per bulan sepanjang tahun
+                  </p>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
+                  {getMonthlyReports().map((month, index) => (
+                    <div key={index} style={{
+                      border: month.isCurrentMonth ? "3px solid #8b5cf6" : "2px solid #e5e7eb",
+                      borderRadius: "20px",
+                      padding: "18px",
+                      backgroundColor: month.isCurrentMonth ? "#f3f4f6" : "#fafbfc",
+                      position: "relative",
+                      boxShadow: month.isCurrentMonth ? "0 8px 25px rgba(139, 92, 246, 0.2)" : "0 2px 10px rgba(0,0,0,0.05)"
+                    }}>
+                      {month.isCurrentMonth && (
+                        <div style={{
+                          position: "absolute",
+                          top: "-12px",
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          backgroundColor: "#8b5cf6",
+                          color: "white",
+                          fontSize: "11px",
+                          padding: "4px 12px",
+                          borderRadius: "15px",
+                          fontWeight: "bold",
+                          boxShadow: "0 4px 15px rgba(139, 92, 246, 0.3)"
+                        }}>
+                          🏃 BULAN AKTIF
+                        </div>
+                      )}
+                      <h4 style={{ margin: "0 0 12px 0", fontSize: "16px", color: month.isCurrentMonth ? "#8b5cf6" : "#1f2937", textAlign: "center", fontWeight: "bold" }}>
+                        {month.period}
+                      </h4>
+                      <div style={{ fontSize: "13px", lineHeight: "1.8" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", padding: "6px 0", borderBottom: "1px solid #f1f5f9" }}>
+                          <span style={{ color: "#6b7280" }}>💰 Pemasukan:</span>
+                          <span style={{ color: "#10b981", fontWeight: "700" }}>{formatCurrency(month.income)}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", padding: "6px 0", borderBottom: "1px solid #f1f5f9" }}>
+                          <span style={{ color: "#6b7280" }}>💸 Pengeluaran:</span>
+                          <span style={{ color: "#ef4444", fontWeight: "700" }}>{formatCurrency(month.expense)}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", backgroundColor: month.isCurrentMonth ? "rgba(139, 92, 246, 0.1)" : "rgba(59, 130, 246, 0.1)", borderRadius: "8px", paddingLeft: "10px", paddingRight: "10px", marginTop: "8px" }}>
+                          <span style={{ fontWeight: "700", color: month.isCurrentMonth ? "#8b5cf6" : "#3b82f6" }}>📊 Profit:</span>
+                          <span style={{ color: month.profit >= 0 ? "#10b981" : "#ef4444", fontWeight: "bold", fontSize: "14px" }}>
+                            {formatCurrency(month.profit)}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px" }}>
+                          <span style={{ color: "#6b7280", fontSize: "11px" }}>📋 Transaksi:</span>
+                          <span style={{ color: month.isCurrentMonth ? "#8b5cf6" : "#6b7280", fontSize: "11px", fontWeight: "600" }}>{month.transactions.length} item</span>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #e5e7eb", paddingTop: "4px", marginTop: "6px" }}>
-                      <span style={{ fontWeight: "600", color: "#374151" }}>Profit:</span>
-                      <span style={{ color: week.profit >= 0 ? "#10b981" : "#ef4444", fontWeight: "bold" }}>
-                        {formatCurrency(week.profit)}
-                      </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Laporan Kategori Tab */}
+          {selectedReportTab === "kategori" && (
+            <div>
+              <div style={{
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                padding: "20px",
+                borderRadius: "20px",
+                marginBottom: "20px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
+              }}>
+                <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                  <h3 style={{ color: "#1f2937", margin: "0 0 8px 0" }}>
+                    🏪 Laporan Per Kategori Bisnis
+                  </h3>
+                  <p style={{ color: "#6b7280", margin: "0", fontSize: "14px" }}>
+                    Analisis performa setiap kategori produk/layanan
+                  </p>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "20px" }}>
+                  {["Es Krim & Mainan", "Gas"].map(category => {
+                    const income = calculateTotal("income", category);
+                    const expense = calculateTotal("expense", category);
+                    const categoryProfit = income - expense;
+                    const categoryTransactions = transactions.filter(t => t.category === category);
+
+                    return (
+                      <div key={category} style={{
+                        border: "2px solid #f59e0b",
+                        borderRadius: "20px",
+                        padding: "25px",
+                        backgroundColor: "#fffbeb",
+                        boxShadow: "0 8px 25px rgba(245, 158, 11, 0.15)"
+                      }}>
+                        <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                          <h4 style={{
+                            margin: "0 0 8px 0",
+                            fontSize: "20px",
+                            color: "#92400e",
+                            fontWeight: "bold"
+                          }}>
+                            {category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"} {category}
+                          </h4>
+                          <div style={{
+                            backgroundColor: "#f59e0b",
+                            color: "white",
+                            padding: "4px 12px",
+                            borderRadius: "15px",
+                            fontSize: "12px",
+                            fontWeight: "bold",
+                            display: "inline-block"
+                          }}>
+                            {categoryTransactions.length} Transaksi
+                          </div>
+                        </div>
+                        
+                        <div style={{ fontSize: "15px", lineHeight: "2" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", padding: "10px 0", borderBottom: "2px solid #fde68a" }}>
+                            <span style={{ color: "#92400e", fontWeight: "600" }}>
+                              💰 Total Pemasukan:
+                            </span>
+                            <span style={{ color: "#10b981", fontWeight: "800", fontSize: "16px" }}>{formatCurrency(income)}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", padding: "10px 0", borderBottom: "2px solid #fde68a" }}>
+                            <span style={{ color: "#92400e", fontWeight: "600" }}>
+                              💸 Total Pengeluaran:
+                            </span>
+                            <span style={{ color: "#ef4444", fontWeight: "800", fontSize: "16px" }}>{formatCurrency(expense)}</span>
+                          </div>
+                          <div style={{ 
+                            display: "flex", 
+                            justifyContent: "space-between", 
+                            padding: "15px", 
+                            backgroundColor: categoryProfit >= 0 ? "#dcfce7" : "#fee2e2", 
+                            borderRadius: "15px", 
+                            marginTop: "15px",
+                            border: `3px solid ${categoryProfit >= 0 ? "#10b981" : "#ef4444"}20`
+                          }}>
+                            <span style={{ 
+                              fontWeight: "800", 
+                              color: categoryProfit >= 0 ? "#166534" : "#dc2626"
+                            }}>
+                              📊 {categoryProfit >= 0 ? "Keuntungan Bersih:" : "Kerugian Bersih:"}
+                            </span>
+                            <span style={{
+                              color: categoryProfit >= 0 ? "#10b981" : "#ef4444",
+                              fontWeight: "900",
+                              fontSize: "18px"
+                            }}>
+                              {formatCurrency(Math.abs(categoryProfit))}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: "15px", textAlign: "center" }}>
+                          <div style={{
+                            padding: "8px 16px",
+                            borderRadius: "20px",
+                            fontSize: "12px",
+                            fontWeight: "bold",
+                            backgroundColor: categoryProfit >= 0 ? "#dcfce7" : "#fee2e2",
+                            color: categoryProfit >= 0 ? "#166534" : "#dc2626",
+                            border: `2px solid ${categoryProfit >= 0 ? "#10b981" : "#ef4444"}30`
+                          }}>
+                            {categoryProfit >= 0 ? "📈 Performa Baik" : "📉 Perlu Evaluasi"}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Export Tab */}
+          {selectedReportTab === "export" && (
+            <div>
+              <div style={{
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                padding: "25px",
+                borderRadius: "20px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+                textAlign: "center"
+              }}>
+                <div style={{ marginBottom: "25px" }}>
+                  <h3 style={{ marginBottom: "15px", color: "#1f2937", fontSize: "22px" }}>💾 Export & Backup Data</h3>
+                  <p style={{ color: "#6b7280", marginBottom: "20px", fontSize: "15px", lineHeight: "1.6" }}>
+                    Download laporan keuangan lengkap dan backup semua data transaksi Toko DGI
+                  </p>
+                </div>
+
+                {/* Quick Stats */}
+                <div style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", 
+                  gap: "12px",
+                  marginBottom: "25px",
+                  padding: "15px",
+                  backgroundColor: "#f8fafc",
+                  borderRadius: "15px",
+                  border: "1px solid #e2e8f0"
+                }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3b82f6" }}>{transactions.length}</div>
+                    <div style={{ fontSize: "11px", color: "#6b7280" }}>Total Transaksi</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "24px", fontWeight: "bold", color: "#10b981" }}>
+                      {transactions.filter(t => t.type === "income").length}
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
-                      <span style={{ color: "#6b7280", fontSize: "11px" }}>Transaksi:</span>
-                      <span style={{ color: "#6b7280", fontSize: "11px" }}>{week.transactions.length} item</span>
+                    <div style={{ fontSize: "11px", color: "#6b7280" }}>Pemasukan</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "24px", fontWeight: "bold", color: "#ef4444" }}>
+                      {transactions.filter(t => t.type === "expense").length}
                     </div>
+                    <div style={{ fontSize: "11px", color: "#6b7280" }}>Pengeluaran</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "24px", fontWeight: "bold", color: "#f59e0b" }}>2</div>
+                    <div style={{ fontSize: "11px", color: "#6b7280" }}>Kategori</div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          <div
-            style={{
-              backgroundColor: "rgba(255, 255, 255, 0.95)",
-              backdropFilter: "blur(10px)",
-              padding: "20px",
-              borderRadius: "20px",
-              marginBottom: "20px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-              border: "1px solid rgba(255,255,255,0.2)",
-            }}
-          >
-            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>📊 Laporan Bulanan (6 Bulan Terakhir)</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
-              {getMonthlyReports().map((month, index) => (
-                <div
-                  key={index}
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "15px",
-                    padding: "15px",
-                    backgroundColor: "#f8fafc",
-                  }}
-                >
-                  <h4 style={{ margin: "0 0 8px 0", fontSize: "14px", color: "#1f2937", textAlign: "center" }}>
-                    {month.period}
-                  </h4>
-                  <div style={{ fontSize: "12px", lineHeight: "1.6" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <span style={{ color: "#6b7280" }}>Pemasukan:</span>
-                      <span style={{ color: "#10b981", fontWeight: "600" }}>{formatCurrency(month.income)}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <span style={{ color: "#6b7280" }}>Pengeluaran:</span>
-                      <span style={{ color: "#ef4444", fontWeight: "600" }}>{formatCurrency(month.expense)}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #e5e7eb", paddingTop: "4px", marginTop: "6px" }}>
-                      <span style={{ fontWeight: "600", color: "#374151" }}>Profit:</span>
-                      <span style={{ color: month.profit >= 0 ? "#10b981" : "#ef4444", fontWeight: "bold" }}>
-                        {formatCurrency(month.profit)}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
-                      <span style={{ color: "#6b7280", fontSize: "11px" }}>Transaksi:</span>
-                      <span style={{ color: "#6b7280", fontSize: "11px" }}>{month.transactions.length} item</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div
-            style={{
-              backgroundColor: "rgba(255, 255, 255, 0.95)",
-              backdropFilter: "blur(10px)",
-              padding: "20px",
-              borderRadius: "20px",
-              marginBottom: "20px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-              border: "1px solid rgba(255,255,255,0.2)",
-            }}
-          >
-            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>🏪 Laporan Per Kategori (Keseluruhan)</h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                gap: "15px",
-              }}
-            >
-              {["Es Krim & Mainan", "Gas"].map((category) => {
-                const income = calculateTotal("income", category);
-                const expense = calculateTotal("expense", category);
-                const categoryProfit = income - expense;
-
-                return (
-                  <div
-                    key={category}
+                <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+                  <button
+                    onClick={downloadReport}
                     style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "15px",
-                      padding: "15px",
-                      backgroundColor: "#fafbfc",
+                      padding: "18px 35px",
+                      background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "18px",
+                      cursor: "pointer",
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      boxShadow: "0 8px 25px rgba(99, 102, 241, 0.3)"
                     }}
                   >
-                    <h4
-                      style={{
-                        margin: "0 0 12px 0",
-                        fontSize: "16px",
-                        textAlign: "center",
-                        color: "#1f2937",
-                      }}
-                    >
-                      {category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"} {category}
-                    </h4>
-                    <div style={{ fontSize: "13px", lineHeight: "1.6" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                        <span style={{ color: "#6b7280" }}>Pemasukan:</span>
-                        <span style={{ color: "#10b981", fontWeight: "600" }}>{formatCurrency(income)}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                        <span style={{ color: "#6b7280" }}>Pengeluaran:</span>
-                        <span style={{ color: "#ef4444", fontWeight: "600" }}>{formatCurrency(expense)}</span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          borderTop: "1px solid #e5e7eb",
-                          paddingTop: "8px",
-                          marginTop: "8px",
-                        }}
-                      >
-                        <span style={{ fontWeight: "600", color: "#374151" }}>Keuntungan:</span>
-                        <span
-                          style={{
-                            color: categoryProfit >= 0 ? "#10b981" : "#ef4444",
-                            fontWeight: "bold",
-                            fontSize: "14px",
-                          }}
-                        >
-                          {formatCurrency(categoryProfit)}
-                        </span>
-                      </div>
-                    </div>
+                    📄 Download Laporan Lengkap
+                  </button>
+
+                  <button
+                    onClick={clearAllData}
+                    style={{
+                      padding: "18px 35px",
+                      background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "18px",
+                      cursor: "pointer",
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      boxShadow: "0 8px 25px rgba(239, 68, 68, 0.3)"
+                    }}
+                  >
+                    🗑️ Reset Semua Data
+                  </button>
+                </div>
+
+                <div style={{
+                  marginTop: "20px",
+                  padding: "20px",
+                  backgroundColor: "#f8fafc",
+                  borderRadius: "18px",
+                  border: "1px solid #e2e8f0"
+                }}>
+                  <h4 style={{ marginBottom: "12px", color: "#1f2937", fontSize: "16px" }}>📋 Isi Laporan Yang Akan Di-Download:</h4>
+                  <div style={{ fontSize: "13px", color: "#64748b", lineHeight: "1.8", textAlign: "left" }}>
+                    <div style={{ marginBottom: "8px" }}>✅ Ringkasan keuangan keseluruhan (pemasukan, pengeluaran, profit)</div>
+                    <div style={{ marginBottom: "8px" }}>✅ Laporan mingguan untuk bulan berjalan</div>
+                    <div style={{ marginBottom: "8px" }}>✅ Laporan bulanan untuk tahun berjalan</div>
+                    <div style={{ marginBottom: "8px" }}>✅ Analisis per kategori (Es Krim & Mainan, Gas)</div>
+                    <div style={{ marginBottom: "8px" }}>✅ Detail lengkap semua transaksi dengan tanggal dan keterangan</div>
+                    <div>✅ Format file: TXT (mudah dibuka di semua device)</div>
                   </div>
-                );
-              })}
+                </div>
+
+                <div style={{
+                  marginTop: "15px",
+                  padding: "15px",
+                  backgroundColor: "#eff6ff",
+                  borderRadius: "15px",
+                  border: "2px solid #3b82f620"
+                }}>
+                  <p style={{ fontSize: "12px", color: "#1e40af", margin: "0 0 8px 0", lineHeight: "1.5", fontWeight: "600" }}>
+                    💡 Tips: Data tersimpan otomatis di memory browser selama sesi ini
+                  </p>
+                  <p style={{ fontSize: "11px", color: "#64748b", margin: "0", lineHeight: "1.4" }}>
+                    📊 Untuk backup permanen, pastikan download laporan secara berkala
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-
-          <div
-            style={{
-              backgroundColor: "rgba(255, 255, 255, 0.95)",
-              backdropFilter: "blur(10px)",
-              padding: "20px",
-              borderRadius: "20px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-              border: "1px solid rgba(255,255,255,0.2)",
-              textAlign: "center",
-            }}
-          >
-            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>💾 Download Laporan</h3>
-            <p style={{ color: "#6b7280", marginBottom: "20px", fontSize: "14px" }}>
-              Download laporan keuangan lengkap dengan analisis mingguan dan bulanan
-            </p>
-
-            <button
-              onClick={downloadReport}
-              style={{
-                padding: "15px 30px",
-                background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
-                color: "white",
-                border: "none",
-                borderRadius: "15px",
-                cursor: "pointer",
-                fontSize: "16px",
-                fontWeight: "600",
-                boxShadow: "0 4px 15px rgba(139, 92, 246, 0.3)",
-                marginRight: "10px",
-              }}
-            >
-              📄 Download Laporan TXT
-            </button>
-
-            <button
-              onClick={clearAllData}
-              style={{
-                padding: "15px 30px",
-                background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-                color: "white",
-                border: "none",
-                borderRadius: "15px",
-                cursor: "pointer",
-                fontSize: "16px",
-                fontWeight: "600",
-                boxShadow: "0 4px 15px rgba(239, 68, 68, 0.3)",
-              }}
-            >
-              🗑️ Hapus Semua Data
-            </button>
-
-            <div
-              style={{
-                marginTop: "15px",
-                padding: "12px",
-                backgroundColor: "#f8fafc",
-                borderRadius: "15px",
-                border: "1px solid #e2e8f0",
-              }}
-            >
-              <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 8px 0", lineHeight: "1.4" }}>
-                💡 File berisi ringkasan keseluruhan, laporan mingguan, bulanan, per kategori, dan detail transaksi
-              </p>
-              <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0", lineHeight: "1.4" }}>
-                📊 Data tersimpan otomatis di browser. Total transaksi: {transactions.length}
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
       {/* Modal Form */}
       {showForm && (
-        <div
-          style={{
-            position: "fixed",
-            top: "0",
-            left: "0",
-            right: "0",
-            bottom: "0",
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "20px",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "rgba(255, 255, 255, 0.98)",
-              backdropFilter: "blur(15px)",
-              borderRadius: "25px",
-              padding: "30px",
-              width: "100%",
-              maxWidth: "400px",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-              border: "1px solid rgba(255,255,255,0.3)",
-            }}
-          >
+        <div style={{
+          position: "fixed",
+          top: "0",
+          left: "0",
+          right: "0",
+          bottom: "0",
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          padding: "20px"
+        }}>
+          <div style={{
+            backgroundColor: "rgba(255, 255, 255, 0.98)",
+            backdropFilter: "blur(15px)",
+            borderRadius: "25px",
+            padding: "30px",
+            width: "100%",
+            maxWidth: "400px",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+            border: "1px solid rgba(255,255,255,0.3)"
+          }}>
             <h3 style={{ fontSize: "18px", marginBottom: "20px", color: "#1f2937", textAlign: "center" }}>
               {editingTransaction
                 ? `✏️ Edit ${editingTransaction.type === "income" ? "Pemasukan" : "Pengeluaran"}`
@@ -1188,7 +1164,6 @@ function App() {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                disabled={!editingTransaction}
                 style={{
                   width: "100%",
                   padding: "12px",
@@ -1196,9 +1171,7 @@ function App() {
                   borderRadius: "15px",
                   fontSize: "16px",
                   outline: "none",
-                  boxSizing: "border-box",
-                  backgroundColor: !editingTransaction ? "#f9fafb" : "white",
-                  color: !editingTransaction ? "#6b7280" : "#374151",
+                  boxSizing: "border-box"
                 }}
               >
                 <option value="Es Krim & Mainan">🍦🧸 Es Krim & Mainan</option>
@@ -1221,35 +1194,33 @@ function App() {
                   borderRadius: "15px",
                   fontSize: "16px",
                   outline: "none",
-                  boxSizing: "border-box",
+                  boxSizing: "border-box"
                 }}
                 placeholder="Masukkan jumlah..."
                 min="0"
               />
             </div>
 
-            {formType === "expense" && (
-              <div style={{ marginBottom: "20px" }}>
-                <label style={{ display: "block", fontSize: "14px", marginBottom: "5px", color: "#374151" }}>
-                  Keterangan Pengeluaran (Opsional)
-                </label>
-                <input
-                  type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    border: "2px solid #e2e8f0",
-                    borderRadius: "15px",
-                    fontSize: "16px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                  placeholder="Contoh: Beli bahan baku, Bayar listrik, dll..."
-                />
-              </div>
-            )}
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", fontSize: "14px", marginBottom: "5px", color: "#374151" }}>
+                Keterangan (Opsional)
+              </label>
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  border: "2px solid #e2e8f0",
+                  borderRadius: "15px",
+                  fontSize: "16px",
+                  outline: "none",
+                  boxSizing: "border-box"
+                }}
+                placeholder="Contoh: Beli bahan baku, Bayar listrik, dll..."
+              />
+            </div>
 
             <div style={{ marginBottom: "25px" }}>
               <label style={{ display: "block", fontSize: "14px", marginBottom: "5px", color: "#374151" }}>
@@ -1266,7 +1237,7 @@ function App() {
                   borderRadius: "15px",
                   fontSize: "16px",
                   outline: "none",
-                  boxSizing: "border-box",
+                  boxSizing: "border-box"
                 }}
               />
             </div>
@@ -1286,7 +1257,7 @@ function App() {
                   border: "none",
                   borderRadius: "15px",
                   cursor: "pointer",
-                  fontSize: "14px",
+                  fontSize: "14px"
                 }}
               >
                 Batal
@@ -1305,7 +1276,7 @@ function App() {
                   borderRadius: "15px",
                   cursor: "pointer",
                   fontSize: "14px",
-                  fontWeight: "600",
+                  fontWeight: "600"
                 }}
               >
                 {editingTransaction
