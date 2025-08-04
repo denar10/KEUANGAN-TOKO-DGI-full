@@ -1,0 +1,21 @@
+{
+  "short_name": "Keuangan DGI",
+  "name": "Keuangan Toko DGI",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><text y='.9em' font-size='160'>💰</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><text y='.9em' font-size='420'>💰</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#667eea",
+  "background_color": "#001428",
+  "description": "Aplikasi manajemen keuangan untuk Toko DGI dengan fitur pencatatan pemasukan, pengeluaran, dan laporan keuangan lengkap."
+}
