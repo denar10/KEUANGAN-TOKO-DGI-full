@@ -1,7 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 function App() {
-  const [transactions, setTransactions] = useState([]);
+  // Initialize state with localStorage data or empty array
+  const [transactions, setTransactions] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedData = localStorage.getItem("keuangan-toko-dgi");
+        return savedData ? JSON.parse(savedData) : [];
+      } catch (error) {
+        console.error("Error loading data from localStorage:", error);
+        return [];
+      }
+    }
+    return [];
+  });
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState("income");
   const [selectedCategory, setSelectedCategory] = useState("Es Krim & Mainan");
@@ -10,6 +22,18 @@ function App() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [currentPage, setCurrentPage] = useState("dashboard");
   const [editingTransaction, setEditingTransaction] = useState(null);
+
+  // Save data to localStorage whenever transactions change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem("keuangan-toko-dgi", JSON.stringify(transactions));
+        console.log("Data saved to localStorage:", transactions.length, "transactions");
+      } catch (error) {
+        console.error("Error saving data to localStorage:", error);
+      }
+    }
+  }, [transactions]);
 
   const totalIncome = transactions
     .filter((t) => t.type === "income")
@@ -88,6 +112,9 @@ function App() {
       )
     ) {
       setTransactions([]);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem("keuangan-toko-dgi");
+      }
       alert("Semua data telah dihapus!");
     }
   };
@@ -102,12 +129,9 @@ function App() {
 
     content = content + "RINGKASAN KEUANGAN:\n";
     content = content + "----------------------------------------\n";
-    content =
-      content + "Total Pemasukan    : " + formatCurrency(totalIncome) + "\n";
-    content =
-      content + "Total Pengeluaran  : " + formatCurrency(totalExpense) + "\n";
-    content =
-      content + "Keuntungan Bersih  : " + formatCurrency(profit) + "\n\n";
+    content = content + "Total Pemasukan    : " + formatCurrency(totalIncome) + "\n";
+    content = content + "Total Pengeluaran  : " + formatCurrency(totalExpense) + "\n";
+    content = content + "Keuntungan Bersih  : " + formatCurrency(profit) + "\n\n";
 
     content = content + "LAPORAN PER KATEGORI:\n";
     content = content + "----------------------------------------\n";
@@ -122,8 +146,7 @@ function App() {
       content = content + "\n" + category + ":\n";
       content = content + "  Pemasukan    : " + formatCurrency(income) + "\n";
       content = content + "  Pengeluaran  : " + formatCurrency(expense) + "\n";
-      content =
-        content + "  Keuntungan   : " + formatCurrency(categoryProfit) + "\n";
+      content = content + "  Keuntungan   : " + formatCurrency(categoryProfit) + "\n";
     }
 
     content = content + "\n\nDETAIL TRANSAKSI:\n";
@@ -132,19 +155,7 @@ function App() {
       const t = transactions[i];
       const jenis = t.type === "income" ? "Pemasukan" : "Pengeluaran";
       const desc = t.description ? " - " + t.description : "";
-      content =
-        content +
-        (i + 1) +
-        ". " +
-        t.date +
-        " | " +
-        t.category +
-        " | " +
-        jenis +
-        " | " +
-        formatCurrency(t.amount) +
-        desc +
-        "\n";
+      content = content + (i + 1) + ". " + t.date + " | " + t.category + " | " + jenis + " | " + formatCurrency(t.amount) + desc + "\n";
     }
 
     content = content + "\n========================================\n";
@@ -155,18 +166,14 @@ function App() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download =
-      "Laporan_Keuangan_Toko_DGI_" +
-      new Date().toISOString().split("T")[0] +
-      ".txt";
+    link.download = "Laporan_Keuangan_Toko_DGI_" + new Date().toISOString().split("T")[0] + ".txt";
     link.click();
     window.URL.revokeObjectURL(url);
   };
 
   const backgroundStyle = {
     minHeight: "100vh",
-    background:
-      "linear-gradient(135deg, rgba(0, 20, 40, 0.95) 0%, rgba(0, 40, 80, 0.9) 100%)",
+    background: "linear-gradient(135deg, rgba(0, 20, 40, 0.95) 0%, rgba(0, 40, 80, 0.9) 100%)",
     fontFamily: "system-ui, -apple-system, sans-serif",
     padding: "10px",
     position: "relative",
@@ -251,10 +258,7 @@ function App() {
               flex: "1",
               minWidth: "60px",
               padding: "12px 8px",
-              background:
-                currentPage === "dashboard"
-                  ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                  : "transparent",
+              background: currentPage === "dashboard" ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "transparent",
               color: currentPage === "dashboard" ? "white" : "#64748b",
               border: "none",
               borderRadius: "16px",
@@ -262,10 +266,7 @@ function App() {
               fontSize: "11px",
               fontWeight: "600",
               transition: "all 0.3s ease",
-              boxShadow:
-                currentPage === "dashboard"
-                  ? "0 4px 15px rgba(102, 126, 234, 0.3)"
-                  : "none",
+              boxShadow: currentPage === "dashboard" ? "0 4px 15px rgba(102, 126, 234, 0.3)" : "none",
             }}
           >
             📊 Dashboard
@@ -276,10 +277,7 @@ function App() {
               flex: "1",
               minWidth: "60px",
               padding: "12px 8px",
-              background:
-                currentPage === "pemasukan"
-                  ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-                  : "transparent",
+              background: currentPage === "pemasukan" ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "transparent",
               color: currentPage === "pemasukan" ? "white" : "#64748b",
               border: "none",
               borderRadius: "16px",
@@ -287,10 +285,7 @@ function App() {
               fontSize: "11px",
               fontWeight: "600",
               transition: "all 0.3s ease",
-              boxShadow:
-                currentPage === "pemasukan"
-                  ? "0 4px 15px rgba(16, 185, 129, 0.3)"
-                  : "none",
+              boxShadow: currentPage === "pemasukan" ? "0 4px 15px rgba(16, 185, 129, 0.3)" : "none",
             }}
           >
             💰 Masuk
@@ -301,10 +296,7 @@ function App() {
               flex: "1",
               minWidth: "60px",
               padding: "12px 8px",
-              background:
-                currentPage === "pengeluaran"
-                  ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
-                  : "transparent",
+              background: currentPage === "pengeluaran" ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" : "transparent",
               color: currentPage === "pengeluaran" ? "white" : "#64748b",
               border: "none",
               borderRadius: "16px",
@@ -312,10 +304,7 @@ function App() {
               fontSize: "11px",
               fontWeight: "600",
               transition: "all 0.3s ease",
-              boxShadow:
-                currentPage === "pengeluaran"
-                  ? "0 4px 15px rgba(239, 68, 68, 0.3)"
-                  : "none",
+              boxShadow: currentPage === "pengeluaran" ? "0 4px 15px rgba(239, 68, 68, 0.3)" : "none",
             }}
           >
             💸 Keluar
@@ -326,10 +315,7 @@ function App() {
               flex: "1",
               minWidth: "60px",
               padding: "12px 8px",
-              background:
-                currentPage === "transaksi"
-                  ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
-                  : "transparent",
+              background: currentPage === "transaksi" ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" : "transparent",
               color: currentPage === "transaksi" ? "white" : "#64748b",
               border: "none",
               borderRadius: "16px",
@@ -337,10 +323,7 @@ function App() {
               fontSize: "11px",
               fontWeight: "600",
               transition: "all 0.3s ease",
-              boxShadow:
-                currentPage === "transaksi"
-                  ? "0 4px 15px rgba(245, 158, 11, 0.3)"
-                  : "none",
+              boxShadow: currentPage === "transaksi" ? "0 4px 15px rgba(245, 158, 11, 0.3)" : "none",
             }}
           >
             📋 Data
@@ -351,10 +334,7 @@ function App() {
               flex: "1",
               minWidth: "60px",
               padding: "12px 8px",
-              background:
-                currentPage === "laporan"
-                  ? "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)"
-                  : "transparent",
+              background: currentPage === "laporan" ? "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)" : "transparent",
               color: currentPage === "laporan" ? "white" : "#64748b",
               border: "none",
               borderRadius: "16px",
@@ -362,10 +342,7 @@ function App() {
               fontSize: "11px",
               fontWeight: "600",
               transition: "all 0.3s ease",
-              boxShadow:
-                currentPage === "laporan"
-                  ? "0 4px 15px rgba(139, 92, 246, 0.3)"
-                  : "none",
+              boxShadow: currentPage === "laporan" ? "0 4px 15px rgba(139, 92, 246, 0.3)" : "none",
             }}
           >
             📊 Report
@@ -420,226 +397,49 @@ function App() {
             </div>
 
             {/* Services */}
-            <div
-              style={{
-                padding: "20px",
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "20px",
-              }}
-            >
+            <div style={{ padding: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
               <div style={{ color: "white" }}>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    PULSA ALL OPERATOR
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>PULSA ALL OPERATOR</span>
                 </div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    TOKEN LISTRIK & TAGIHAN LISTRIK
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>TOKEN LISTRIK & TAGIHAN LISTRIK</span>
                 </div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    TOP UP GAME (MOBILE LEGEND, FREE FIRE, PUBG, DLL.)
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>TOP UP GAME (MOBILE LEGEND, FREE FIRE, PUBG, DLL.)</span>
                 </div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    TOP UP DANA, SHOPEEPAY, GOPAY, OVO
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>TOP UP DANA, SHOPEEPAY, GOPAY, OVO</span>
                 </div>
               </div>
               <div style={{ color: "white" }}>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    PAKET DATA / KUOTA
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>PAKET DATA / KUOTA</span>
                 </div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    PAKET TELEPON / SMS
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>PAKET TELEPON / SMS</span>
                 </div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    BPJS & PDAM
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>BPJS & PDAM</span>
                 </div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    VOUCHER WIFI 2000/JAM
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>VOUCHER WIFI 2000/JAM</span>
                 </div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    ALAT TULIS & JAS HUJAN
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>ALAT TULIS & JAS HUJAN</span>
                 </div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#d4af37",
-                      fontSize: "14px",
-                      marginTop: "2px",
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>
-                    GAS LPG 3KG
-                  </span>
+                <div style={{ marginBottom: "12px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <span style={{ color: "#d4af37", fontSize: "14px", marginTop: "2px" }}>•</span>
+                  <span style={{ fontSize: "13px", lineHeight: "1.4" }}>GAS LPG 3KG</span>
                 </div>
               </div>
             </div>
@@ -686,14 +486,7 @@ function App() {
                 color: "white",
               }}
             >
-              <div
-                style={{
-                  fontSize: "12px",
-                  opacity: "0.9",
-                  marginBottom: "8px",
-                  fontWeight: "500",
-                }}
-              >
+              <div style={{ fontSize: "12px", opacity: "0.9", marginBottom: "8px", fontWeight: "500" }}>
                 Total Pemasukan
               </div>
               <div style={{ fontSize: "20px", fontWeight: "bold" }}>
@@ -712,14 +505,7 @@ function App() {
                 color: "white",
               }}
             >
-              <div
-                style={{
-                  fontSize: "12px",
-                  opacity: "0.9",
-                  marginBottom: "8px",
-                  fontWeight: "500",
-                }}
-              >
+              <div style={{ fontSize: "12px", opacity: "0.9", marginBottom: "8px", fontWeight: "500" }}>
                 Total Pengeluaran
               </div>
               <div style={{ fontSize: "20px", fontWeight: "bold" }}>
@@ -729,29 +515,16 @@ function App() {
 
             <div
               style={{
-                background:
-                  profit >= 0
-                    ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
-                    : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                background: profit >= 0 ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)" : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
                 padding: "20px",
                 borderRadius: "20px",
                 textAlign: "center",
-                boxShadow:
-                  profit >= 0
-                    ? "0 8px 32px rgba(59, 130, 246, 0.3)"
-                    : "0 8px 32px rgba(245, 158, 11, 0.3)",
+                boxShadow: profit >= 0 ? "0 8px 32px rgba(59, 130, 246, 0.3)" : "0 8px 32px rgba(245, 158, 11, 0.3)",
                 border: "1px solid rgba(255,255,255,0.1)",
                 color: "white",
               }}
             >
-              <div
-                style={{
-                  fontSize: "12px",
-                  opacity: "0.9",
-                  marginBottom: "8px",
-                  fontWeight: "500",
-                }}
-              >
+              <div style={{ fontSize: "12px", opacity: "0.9", marginBottom: "8px", fontWeight: "500" }}>
                 {profit >= 0 ? "Keuntungan" : "Kerugian"}
               </div>
               <div style={{ fontSize: "20px", fontWeight: "bold" }}>
@@ -795,13 +568,7 @@ function App() {
                   border: "1px solid rgba(255,255,255,0.2)",
                 }}
               >
-                <h3
-                  style={{
-                    marginBottom: "15px",
-                    color: "#1f2937",
-                    textAlign: "center",
-                  }}
-                >
+                <h3 style={{ marginBottom: "15px", color: "#1f2937", textAlign: "center" }}>
                   {category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"} {category}
                 </h3>
                 <button
@@ -813,8 +580,7 @@ function App() {
                   style={{
                     width: "100%",
                     padding: "15px",
-                    background:
-                      "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                     color: "white",
                     border: "none",
                     borderRadius: "15px",
@@ -865,13 +631,7 @@ function App() {
                   border: "1px solid rgba(255,255,255,0.2)",
                 }}
               >
-                <h3
-                  style={{
-                    marginBottom: "15px",
-                    color: "#1f2937",
-                    textAlign: "center",
-                  }}
-                >
+                <h3 style={{ marginBottom: "15px", color: "#1f2937", textAlign: "center" }}>
                   {category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"} {category}
                 </h3>
                 <button
@@ -883,8 +643,7 @@ function App() {
                   style={{
                     width: "100%",
                     padding: "15px",
-                    background:
-                      "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                    background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
                     color: "white",
                     border: "none",
                     borderRadius: "15px",
@@ -926,13 +685,7 @@ function App() {
             }}
           >
             {transactions.length === 0 ? (
-              <div
-                style={{
-                  padding: "40px",
-                  textAlign: "center",
-                  color: "#6b7280",
-                }}
-              >
+              <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>
                 Belum ada transaksi
               </div>
             ) : (
@@ -948,60 +701,30 @@ function App() {
                   }}
                 >
                   <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      {transaction.category === "Es Krim & Mainan"
-                        ? "🍦🧸"
-                        : "⛽"}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "5px" }}>
+                      {transaction.category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"}
                       <span
                         style={{
                           padding: "2px 8px",
                           borderRadius: "12px",
                           fontSize: "12px",
                           fontWeight: "500",
-                          backgroundColor:
-                            transaction.type === "income"
-                              ? "#dcfce7"
-                              : "#fee2e2",
-                          color:
-                            transaction.type === "income"
-                              ? "#166534"
-                              : "#dc2626",
+                          backgroundColor: transaction.type === "income" ? "#dcfce7" : "#fee2e2",
+                          color: transaction.type === "income" ? "#166534" : "#dc2626",
                         }}
                       >
-                        {transaction.type === "income"
-                          ? "Pemasukan"
-                          : "Pengeluaran"}
+                        {transaction.type === "income" ? "Pemasukan" : "Pengeluaran"}
                       </span>
                       <span style={{ fontSize: "12px", color: "#6b7280" }}>
                         {transaction.category}
                       </span>
                     </div>
                     {transaction.description && (
-                      <p
-                        style={{
-                          fontSize: "12px",
-                          color: "#4b5563",
-                          margin: "5px 0",
-                          fontStyle: "italic",
-                        }}
-                      >
+                      <p style={{ fontSize: "12px", color: "#4b5563", margin: "5px 0", fontStyle: "italic" }}>
                         "{transaction.description}"
                       </p>
                     )}
-                    <p
-                      style={{
-                        fontSize: "12px",
-                        color: "#9ca3af",
-                        margin: "0",
-                      }}
-                    >
+                    <p style={{ fontSize: "12px", color: "#9ca3af", margin: "0" }}>
                       {transaction.date}
                     </p>
                   </div>
@@ -1010,21 +733,14 @@ function App() {
                       style={{
                         fontSize: "18px",
                         fontWeight: "bold",
-                        color:
-                          transaction.type === "income" ? "#16a34a" : "#dc2626",
+                        color: transaction.type === "income" ? "#16a34a" : "#dc2626",
                         margin: "0 0 8px 0",
                       }}
                     >
                       {transaction.type === "income" ? "+" : "-"}
                       {formatCurrency(transaction.amount)}
                     </p>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "8px",
-                        justifyContent: "flex-end",
-                      }}
-                    >
+                    <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                       <button
                         onClick={() => handleEdit(transaction)}
                         style={{
@@ -1043,11 +759,7 @@ function App() {
                       <button
                         onClick={() => {
                           if (window.confirm("Hapus transaksi?")) {
-                            setTransactions(
-                              transactions.filter(
-                                (t) => t.id !== transaction.id
-                              )
-                            );
+                            setTransactions(transactions.filter((t) => t.id !== transaction.id));
                           }
                         }}
                         style={{
@@ -1098,9 +810,7 @@ function App() {
               border: "1px solid rgba(255,255,255,0.2)",
             }}
           >
-            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>
-              Ringkasan Keuangan
-            </h3>
+            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>Ringkasan Keuangan</h3>
             <div
               style={{
                 display: "grid",
@@ -1108,57 +818,15 @@ function App() {
                 gap: "15px",
               }}
             >
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "15px",
-                  backgroundColor: "#f0fdf4",
-                  borderRadius: "15px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "14px",
-                    color: "#16a34a",
-                    marginBottom: "5px",
-                  }}
-                >
-                  Total Pemasukan
-                </div>
-                <div
-                  style={{
-                    fontSize: "18px",
-                    fontWeight: "bold",
-                    color: "#15803d",
-                  }}
-                >
+              <div style={{ textAlign: "center", padding: "15px", backgroundColor: "#f0fdf4", borderRadius: "15px" }}>
+                <div style={{ fontSize: "14px", color: "#16a34a", marginBottom: "5px" }}>Total Pemasukan</div>
+                <div style={{ fontSize: "18px", fontWeight: "bold", color: "#15803d" }}>
                   {formatCurrency(totalIncome)}
                 </div>
               </div>
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "15px",
-                  backgroundColor: "#fef2f2",
-                  borderRadius: "15px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "14px",
-                    color: "#dc2626",
-                    marginBottom: "5px",
-                  }}
-                >
-                  Total Pengeluaran
-                </div>
-                <div
-                  style={{
-                    fontSize: "18px",
-                    fontWeight: "bold",
-                    color: "#dc2626",
-                  }}
-                >
+              <div style={{ textAlign: "center", padding: "15px", backgroundColor: "#fef2f2", borderRadius: "15px" }}>
+                <div style={{ fontSize: "14px", color: "#dc2626", marginBottom: "5px" }}>Total Pengeluaran</div>
+                <div style={{ fontSize: "18px", fontWeight: "bold", color: "#dc2626" }}>
                   {formatCurrency(totalExpense)}
                 </div>
               </div>
@@ -1170,22 +838,10 @@ function App() {
                   borderRadius: "15px",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: "14px",
-                    color: profit >= 0 ? "#2563eb" : "#ea580c",
-                    marginBottom: "5px",
-                  }}
-                >
+                <div style={{ fontSize: "14px", color: profit >= 0 ? "#2563eb" : "#ea580c", marginBottom: "5px" }}>
                   {profit >= 0 ? "Keuntungan" : "Kerugian"}
                 </div>
-                <div
-                  style={{
-                    fontSize: "18px",
-                    fontWeight: "bold",
-                    color: profit >= 0 ? "#1d4ed8" : "#ea580c",
-                  }}
-                >
+                <div style={{ fontSize: "18px", fontWeight: "bold", color: profit >= 0 ? "#1d4ed8" : "#ea580c" }}>
                   {formatCurrency(Math.abs(profit))}
                 </div>
               </div>
@@ -1203,9 +859,7 @@ function App() {
               border: "1px solid rgba(255,255,255,0.2)",
             }}
           >
-            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>
-              Laporan Per Kategori
-            </h3>
+            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>Laporan Per Kategori</h3>
             <div
               style={{
                 display: "grid",
@@ -1236,33 +890,16 @@ function App() {
                         color: "#1f2937",
                       }}
                     >
-                      {category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"}{" "}
-                      {category}
+                      {category === "Es Krim & Mainan" ? "🍦🧸" : "⛽"} {category}
                     </h4>
                     <div style={{ fontSize: "13px", lineHeight: "1.6" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: "5px",
-                        }}
-                      >
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
                         <span style={{ color: "#6b7280" }}>Pemasukan:</span>
-                        <span style={{ color: "#10b981", fontWeight: "600" }}>
-                          {formatCurrency(income)}
-                        </span>
+                        <span style={{ color: "#10b981", fontWeight: "600" }}>{formatCurrency(income)}</span>
                       </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: "5px",
-                        }}
-                      >
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
                         <span style={{ color: "#6b7280" }}>Pengeluaran:</span>
-                        <span style={{ color: "#ef4444", fontWeight: "600" }}>
-                          {formatCurrency(expense)}
-                        </span>
+                        <span style={{ color: "#ef4444", fontWeight: "600" }}>{formatCurrency(expense)}</span>
                       </div>
                       <div
                         style={{
@@ -1273,9 +910,7 @@ function App() {
                           marginTop: "8px",
                         }}
                       >
-                        <span style={{ fontWeight: "600", color: "#374151" }}>
-                          Keuntungan:
-                        </span>
+                        <span style={{ fontWeight: "600", color: "#374151" }}>Keuntungan:</span>
                         <span
                           style={{
                             color: categoryProfit >= 0 ? "#10b981" : "#ef4444",
@@ -1304,16 +939,8 @@ function App() {
               textAlign: "center",
             }}
           >
-            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>
-              💾 Download Laporan
-            </h3>
-            <p
-              style={{
-                color: "#6b7280",
-                marginBottom: "20px",
-                fontSize: "14px",
-              }}
-            >
+            <h3 style={{ marginBottom: "15px", color: "#1f2937" }}>💾 Download Laporan</h3>
+            <p style={{ color: "#6b7280", marginBottom: "20px", fontSize: "14px" }}>
               Download laporan keuangan lengkap Toko DGI dalam format teks
             </p>
 
@@ -1361,27 +988,11 @@ function App() {
                 border: "1px solid #e2e8f0",
               }}
             >
-              <p
-                style={{
-                  fontSize: "12px",
-                  color: "#64748b",
-                  margin: "0 0 8px 0",
-                  lineHeight: "1.4",
-                }}
-              >
-                💡 File akan berisi ringkasan keuangan, laporan per kategori,
-                dan detail semua transaksi
+              <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 8px 0", lineHeight: "1.4" }}>
+                💡 File akan berisi ringkasan keuangan, laporan per kategori, dan detail semua transaksi
               </p>
-              <p
-                style={{
-                  fontSize: "11px",
-                  color: "#94a3b8",
-                  margin: "0",
-                  lineHeight: "1.4",
-                }}
-              >
-                📊 Data tersimpan dalam memori session. Total transaksi:{" "}
-                {transactions.length}
+              <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0", lineHeight: "1.4" }}>
+                📊 Data tersimpan otomatis di browser. Total transaksi: {transactions.length}
               </p>
             </div>
           </div>
@@ -1417,38 +1028,18 @@ function App() {
               border: "1px solid rgba(255,255,255,0.3)",
             }}
           >
-            <h3
-              style={{
-                fontSize: "18px",
-                marginBottom: "20px",
-                color: "#1f2937",
-                textAlign: "center",
-              }}
-            >
+            <h3 style={{ fontSize: "18px", marginBottom: "20px", color: "#1f2937", textAlign: "center" }}>
               {editingTransaction
-                ? `✏️ Edit ${
-                    editingTransaction.type === "income"
-                      ? "Pemasukan"
-                      : "Pengeluaran"
-                  }`
+                ? `✏️ Edit ${editingTransaction.type === "income" ? "Pemasukan" : "Pengeluaran"}`
                 : formType === "income"
                 ? "💰 Tambah Pemasukan"
                 : "💸 Tambah Pengeluaran"}
               <br />
-              <span style={{ fontSize: "14px", color: "#6b7280" }}>
-                {selectedCategory}
-              </span>
+              <span style={{ fontSize: "14px", color: "#6b7280" }}>{selectedCategory}</span>
             </h3>
 
             <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  marginBottom: "5px",
-                  color: "#374151",
-                }}
-              >
+              <label style={{ display: "block", fontSize: "14px", marginBottom: "5px", color: "#374151" }}>
                 Kategori
               </label>
               <select
@@ -1473,14 +1064,7 @@ function App() {
             </div>
 
             <div style={{ marginBottom: "20px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  marginBottom: "5px",
-                  color: "#374151",
-                }}
-              >
+              <label style={{ display: "block", fontSize: "14px", marginBottom: "5px", color: "#374151" }}>
                 Jumlah (Rp)
               </label>
               <input
@@ -1503,14 +1087,7 @@ function App() {
 
             {formType === "expense" && (
               <div style={{ marginBottom: "20px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "14px",
-                    marginBottom: "5px",
-                    color: "#374151",
-                  }}
-                >
+                <label style={{ display: "block", fontSize: "14px", marginBottom: "5px", color: "#374151" }}>
                   Keterangan Pengeluaran (Opsional)
                 </label>
                 <input
@@ -1532,14 +1109,7 @@ function App() {
             )}
 
             <div style={{ marginBottom: "25px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  marginBottom: "5px",
-                  color: "#374151",
-                }}
-              >
+              <label style={{ display: "block", fontSize: "14px", marginBottom: "5px", color: "#374151" }}>
                 Tanggal
               </label>
               <input
@@ -1558,9 +1128,7 @@ function App() {
               />
             </div>
 
-            <div
-              style={{ display: "flex", gap: "10px", justifyContent: "center" }}
-            >
+            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
               <button
                 onClick={() => {
                   setShowForm(false);
